@@ -99,11 +99,35 @@ impl StartOperator {
     }
 }
 
+pub struct TokenIter<'s> {
+    lexer: Lexer<'s>,
+    seen_eof: bool,
+}
+
+impl<'s> std::iter::Iterator for TokenIter<'s> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.seen_eof {
+            None
+        } else {
+            let t = self.lexer.next_token();
+            self.seen_eof = t.is_eof();
+            Some(t)
+        }
+    }
+}
+
 pub struct Lexer<'s>(Peekable<Chars<'s>>);
 
 impl<'s> Lexer<'s> {
     pub fn new(s: &'s str) -> Lexer<'s> {
         Lexer(s.chars().peekable())
+    }
+    pub fn tokens(self) -> TokenIter<'s> {
+        TokenIter {
+            lexer: self,
+            seen_eof: false,
+        }
     }
 
     fn skip_whitespace(&mut self) {
@@ -137,7 +161,9 @@ impl<'s> Lexer<'s> {
                             token_string.push(ch);
                             match ch {
                                 '+' => State::Finished(Token::PLUS),
-                                '-' => State::Finished(Token::MINUS),
+                                '-' if !self.peek().is_some_and(|ch| ch.is_digit(10)) => {
+                                    State::Finished(Token::MINUS)
+                                }
                                 '*' => State::Finished(Token::ASTERISK),
                                 '/' => State::Finished(Token::SLASH),
                                 '\n' => State::Finished(Token::NEWLINE),
@@ -160,7 +186,7 @@ impl<'s> Lexer<'s> {
                         token_string.push(ch);
                         match ch {
                             '"' => State::Finished(Token::STRING(token_string.clone())),
-                            other => State::InString,
+                            _ => State::InString,
                         }
                     }
                 },
@@ -253,7 +279,7 @@ PRINT MY_STRING
 IF Z > 5 THEN
     PRINT "WORKED"
 ENDIF
-LET NEG_X = 4.312
+LET NEG_X = -4.312
         "#;
 
     let mut lexer = Lexer::new(&s);
@@ -263,6 +289,72 @@ LET NEG_X = 4.312
         println!("{:?}", token);
         if token.is_eof() {
             break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn text_lexing_success() {
+        let inputs = vec![
+            r#"LET XΔ = 6"#,
+            r#"LET X = -4.6
+LET Y2 = 3.2
+LET X_PLUS_Y = X + Y
+IF X_PLUS_Y >= 3 THEN
+    PRINT "WORKED"
+ENDIF"#,
+        ];
+
+        let answers = {
+            use Token::*;
+            vec![
+                vec![
+                    LET,
+                    IDENT("XΔ".to_string()),
+                    EQ,
+                    NUMBER("6".to_string()),
+                    EOF,
+                ],
+                vec![
+                    LET,
+                    IDENT("X".to_string()),
+                    EQ,
+                    NUMBER("-4.6".to_string()),
+                    NEWLINE,
+                    LET,
+                    IDENT("Y2".to_string()),
+                    EQ,
+                    NUMBER("3.2".to_string()),
+                    NEWLINE,
+                    LET,
+                    IDENT("X_PLUS_Y".to_string()),
+                    EQ,
+                    IDENT("X".to_string()),
+                    PLUS,
+                    IDENT("Y".to_string()),
+                    NEWLINE,
+                    IF,
+                    IDENT("X_PLUS_Y".to_string()),
+                    GTEQ,
+                    NUMBER("3".to_string()),
+                    THEN,
+                    NEWLINE,
+                    PRINT,
+                    STRING("\"WORKED\"".to_string()),
+                    NEWLINE,
+                    ENDIF,
+                    EOF,
+                ],
+            ]
+        };
+
+        for (input, expected) in std::iter::zip(inputs, answers) {
+            let tokens: Vec<_> = Lexer::new(input).tokens().collect();
+            assert_eq!(tokens, expected);
         }
     }
 }
