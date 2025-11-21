@@ -117,6 +117,10 @@ impl<'s> std::iter::Iterator for TokenIter<'s> {
     }
 }
 
+fn is_operator(ch: char) -> bool {
+    matches!(ch, '+' | '-' | '*' | '/' | '=' | '>' | '<')
+}
+
 pub struct Lexer<'s>(Peekable<Chars<'s>>);
 
 impl<'s> Lexer<'s> {
@@ -223,6 +227,9 @@ impl<'s> Lexer<'s> {
                         w if w.is_ascii_whitespace() => {
                             State::Finished(Token::NUMBER(token_string.clone()))
                         }
+                        ch if !ch.is_alphabetic() => {
+                            State::Finished(Token::NUMBER(token_string.clone()))
+                        }
                         other => {
                             panic!("Lexer error. Invalid character in numeric token: {}", other)
                         }
@@ -240,6 +247,9 @@ impl<'s> Lexer<'s> {
                             token_string.push(ch);
                             self.next_char();
                             State::InAlpha
+                        }
+                        ch if is_operator(ch) => {
+                            State::Finished(Token::try_keyword_or_ident(token_string.clone()))
                         }
                         w if w.is_ascii_whitespace() => {
                             State::Finished(Token::try_keyword_or_ident(token_string.clone()))
@@ -298,7 +308,41 @@ mod test {
     use super::*;
 
     #[test]
-    fn text_lexing_success() {
+    fn test_edge_case_operator_delimited_things() {
+        let inputs = vec![r#"LET X = 3+4"#, r#"LET X=Y>=3"#];
+
+        let answers = {
+            use Token::*;
+            vec![
+                vec![
+                    LET,
+                    IDENT("X".to_string()),
+                    EQ,
+                    NUMBER("3".to_string()),
+                    PLUS,
+                    NUMBER("4".to_string()),
+                    EOF,
+                ],
+                vec![
+                    LET,
+                    IDENT("X".to_string()),
+                    EQ,
+                    IDENT("Y".to_string()),
+                    GTEQ,
+                    NUMBER("3".to_string()),
+                    EOF,
+                ],
+            ]
+        };
+
+        for (input, expected) in std::iter::zip(inputs, answers) {
+            let tokens: Vec<_> = Lexer::new(input).tokens().collect();
+            assert_eq!(tokens, expected);
+        }
+    }
+
+    #[test]
+    fn test_lexing_success() {
         let inputs = vec![
             r#"LET XΔ = 6"#,
             r#"LET X = -4.6
