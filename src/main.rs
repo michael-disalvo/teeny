@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::iter::Peekable;
 
 struct IntoChars {
@@ -89,145 +90,190 @@ impl Token {
     }
 }
 
-fn newline_optional(lexer: &mut Lexer) {
-    while *lexer.peek_token() == Token::NEWLINE {
-        let _ = lexer.next_token();
-    }
+struct Parser {
+    lexer: Lexer,
+    symbols: HashSet<String>,
+    labels_declared: HashSet<String>,
+    labels_gotoed: HashSet<String>,
 }
 
-fn newline(lexer: &mut Lexer) {
-    println!("NEWLINE");
-    match lexer.next_token() {
-        Token::NEWLINE => newline_optional(lexer),
-        other => panic!("Parse error. Expected newline but found {:?}", other),
-    }
-}
-
-fn primary(lexer: &mut Lexer) {
-    println!("PRIMARY");
-    match lexer.next_token() {
-        Token::NUMBER(..) => {}
-        Token::IDENT(..) => {}
-        other => panic!(
-            "Parse error. Expected number or identifier but found {:?}",
-            other
-        ),
-    }
-}
-
-fn unary(lexer: &mut Lexer) {
-    println!("UNARY");
-    match lexer.peek_token() {
-        Token::PLUS | Token::MINUS => {
-            let _ = lexer.next_token();
+impl Parser {
+    fn new(lexer: Lexer) -> Self {
+        Self {
+            lexer,
+            symbols: Default::default(),
+            labels_declared: Default::default(),
+            labels_gotoed: Default::default(),
         }
-        _ => {}
     }
-    primary(lexer)
-}
-
-fn term(lexer: &mut Lexer) {
-    println!("TERM");
-
-    unary(lexer);
-
-    while matches!(lexer.peek_token(), Token::SLASH | Token::ASTERISK) {
-        lexer.next_token();
-        unary(lexer);
-    }
-}
-
-fn expression(lexer: &mut Lexer) {
-    println!("EXPRESSION");
-
-    term(lexer);
-    while matches!(lexer.peek_token(), Token::PLUS | Token::MINUS) {
-        lexer.next_token();
-        term(lexer);
-    }
-}
-
-fn comparison(lexer: &mut Lexer) {
-    println!("COMPARISON");
-    expression(lexer);
-
-    if !lexer.peek_token().is_comparator() {
-        panic!(
-            "Parse error. Expected comparator, found {:?}",
-            lexer.peek_token()
-        );
-    }
-
-    while lexer.peek_token().is_comparator() {
-        lexer.next_token();
-        expression(lexer);
-    }
-}
-
-fn statement(lexer: &mut Lexer) {
-    println!("STATEMENT");
-    match lexer.next_token() {
-        Token::EOF => unreachable!(),
-        Token::PRINT => match lexer.peek_token() {
-            &Token::STRING(..) => {
-                let _ = lexer.next_token();
-            }
-            _ => expression(lexer),
-        },
-        Token::IF => {
-            comparison(lexer);
-            match lexer.next_token() {
-                Token::THEN => {}
-                other => panic!("Parser error. Expected THEN but found {:?}", other),
-            }
-
-            newline(lexer);
-            while *lexer.peek_token() != Token::ENDIF {
-                statement(lexer);
-            }
-            lexer.next_token();
+    fn newline_optional(&mut self) {
+        while *self.lexer.peek_token() == Token::NEWLINE {
+            let _ = self.lexer.next_token();
         }
-        Token::WHILE => {
-            comparison(lexer);
-            match lexer.next_token() {
-                Token::REPEAT => {}
-                other => panic!("Parser error. Expected REPEAT but found {:?}", other),
-            }
-            newline(lexer);
-            while *lexer.peek_token() != Token::ENDWHILE {
-                statement(lexer);
-            }
-            lexer.next_token();
+    }
+
+    fn newline(&mut self) {
+        println!("NEWLINE");
+        match self.lexer.next_token() {
+            Token::NEWLINE => self.newline_optional(),
+            other => panic!("Parse error. Expected newline but found {:?}", other),
         }
-        Token::LABEL | Token::GOTO | Token::INPUT => match lexer.next_token() {
-            Token::IDENT(..) => {}
-            other => panic!("Parser error. Expected identifier but found {:?}", other),
-        },
-        Token::LET => {
-            match lexer.next_token() {
-                Token::IDENT(..) => {}
+    }
+
+    fn check_symbol(&mut self, symbol: &str) {
+        if !self.symbols.contains(symbol) {
+            panic!("Parse error. Unknown symbol \"{}\"", symbol);
+        }
+    }
+
+    fn primary(&mut self) {
+        println!("PRIMARY");
+        match self.lexer.next_token() {
+            Token::NUMBER(..) => {}
+            Token::IDENT(symbol) => self.check_symbol(&symbol),
+            other => panic!(
+                "Parse error. Expected number or identifier but found {:?}",
+                other
+            ),
+        }
+    }
+
+    fn unary(&mut self) {
+        println!("UNARY");
+        match self.lexer.peek_token() {
+            Token::PLUS | Token::MINUS => {
+                let _ = self.lexer.next_token();
+            }
+            _ => {}
+        }
+        self.primary()
+    }
+
+    fn term(&mut self) {
+        println!("TERM");
+
+        self.unary();
+
+        while matches!(self.lexer.peek_token(), Token::SLASH | Token::ASTERISK) {
+            self.lexer.next_token();
+            self.unary();
+        }
+    }
+
+    fn expression(&mut self) {
+        println!("EXPRESSION");
+
+        self.term();
+        while matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
+            self.lexer.next_token();
+            self.term();
+        }
+    }
+
+    fn comparison(&mut self) {
+        println!("COMPARISON");
+        self.expression();
+
+        if !self.lexer.peek_token().is_comparator() {
+            panic!(
+                "Parse error. Expected comparator, found {:?}",
+                self.lexer.peek_token()
+            );
+        }
+
+        while self.lexer.peek_token().is_comparator() {
+            self.lexer.next_token();
+            self.expression();
+        }
+    }
+
+    fn statement(&mut self) {
+        println!("STATEMENT");
+        match self.lexer.next_token() {
+            Token::EOF => unreachable!(),
+            Token::PRINT => match self.lexer.peek_token() {
+                &Token::STRING(..) => {
+                    let _ = self.lexer.next_token();
+                }
+                _ => self.expression(),
+            },
+            Token::IF => {
+                self.comparison();
+                match self.lexer.next_token() {
+                    Token::THEN => {}
+                    other => panic!("Parser error. Expected THEN but found {:?}", other),
+                }
+
+                self.newline();
+                while *self.lexer.peek_token() != Token::ENDIF {
+                    self.statement();
+                }
+                self.lexer.next_token();
+            }
+            Token::WHILE => {
+                self.comparison();
+                match self.lexer.next_token() {
+                    Token::REPEAT => {}
+                    other => panic!("Parser error. Expected REPEAT but found {:?}", other),
+                }
+                self.newline();
+                while *self.lexer.peek_token() != Token::ENDWHILE {
+                    self.statement();
+                }
+                self.lexer.next_token();
+            }
+            Token::LABEL => match self.lexer.next_token() {
+                Token::IDENT(label_declared) => {
+                    self.labels_declared.insert(label_declared);
+                }
                 other => panic!("Parser error. Expected identifier but found {:?}", other),
+            },
+            Token::GOTO => match self.lexer.next_token() {
+                Token::IDENT(label_gotoed) => {
+                    self.labels_gotoed.insert(label_gotoed);
+                }
+                other => panic!("Parser error. Expected identifier but found {:?}", other),
+            },
+            Token::INPUT => match self.lexer.next_token() {
+                Token::IDENT(symbol) => {
+                    self.symbols.insert(symbol);
+                }
+                other => panic!("Parser error. Expected identifier but found {:?}", other),
+            },
+            Token::LET => {
+                match self.lexer.next_token() {
+                    Token::IDENT(symbol) => {
+                        self.symbols.insert(symbol);
+                    }
+                    other => panic!("Parser error. Expected identifier but found {:?}", other),
+                }
+                match self.lexer.next_token() {
+                    Token::EQ => {}
+                    other => panic!("Parser error. Expected `=` but found {:?}", other),
+                }
+                self.expression();
             }
-            match lexer.next_token() {
-                Token::EQ => {}
-                other => panic!("Parser error. Expected `=` but found {:?}", other),
-            }
-            expression(lexer);
+            other => panic!(
+                "Parser error. Expected start of statement but found {:?}",
+                other
+            ),
         }
-        other => panic!(
-            "Parser error. Expected start of statement but found {:?}",
-            other
-        ),
+
+        self.newline();
     }
 
-    newline(lexer);
-}
+    fn program(&mut self) {
+        println!("PROGRAM");
+        self.newline_optional();
+        while !self.lexer.peek_token().is_eof() {
+            self.statement()
+        }
 
-fn program(mut lexer: Lexer) {
-    println!("PROGRAM");
-    newline_optional(&mut lexer);
-    while !lexer.peek_token().is_eof() {
-        statement(&mut lexer)
+        for label_gotoed in &self.labels_gotoed {
+            if !self.labels_declared.contains(label_gotoed) {
+                panic!("Parser error. Unknown label gotoed: \"{}\"", label_gotoed);
+            }
+        }
     }
 }
 
@@ -454,19 +500,18 @@ impl Lexer {
 
 fn main() {
     let s = r#"
-LET X = 3
-PRINT X
-IF X >= 2 THEN
-    LET Y = 5
-    WHILE Y*2 > 3 REPEAT 
-        PRINT Y
-        LET Y = Y - 1
-    ENDWHILE 
-    PRINT "LARGE"
-ENDIF"#;
+LET X = 4.2
+PRINT X + 2
+INPUT Y
+PRINT Y
+LABEL loop
+PRINT "hello world!"
+GOTO loop
+"#;
 
-    let lexer = Lexer::new(&s);
-    program(lexer);
+    let lexer = Lexer::new(s);
+    let mut parser = Parser::new(lexer);
+    parser.program();
 }
 
 #[cfg(test)]
