@@ -169,7 +169,10 @@ impl Lexer {
                     Some(ch) => {
                         token_string.push(ch);
                         match ch {
-                            '"' => State::Finished(Token::STRING(token_string.clone())),
+                            '"' => {
+                                let string = token_string.trim_matches('"').to_owned();
+                                State::Finished(Token::STRING(string))
+                            }
                             _ => State::InString,
                         }
                     }

@@ -33,6 +33,27 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn text(&self) -> &str {
+        use Token::*;
+        match self {
+            NUMBER(s) => s,
+            IDENT(s) => s,
+            STRING(s) => s,
+            EQ => "=",
+            PLUS => "+",
+            MINUS => "-",
+            ASTERISK => "*",
+            SLASH => "/",
+            EQEQ => "==",
+            NOTEQ => "!=",
+            LT => "<",
+            LTEQ => "<=",
+            GT => ">",
+            GTEQ => ">=",
+            _ => "",
+        }
+    }
+
     pub fn is_comparator(&self) -> bool {
         matches!(
             self,
