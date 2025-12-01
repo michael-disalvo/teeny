@@ -6,6 +6,13 @@ mod lex;
 mod parse;
 mod token;
 
+#[derive(clap::Parser)]
+#[command(version, about)]
+struct Args {
+    /// Input file of teeny code to compile
+    input_file: String,
+}
+
 #[derive(Debug, Clone)]
 struct Emitter {
     header: String,
@@ -48,20 +55,11 @@ impl Emitter {
 }
 
 fn main() {
-    let s = r#"
-LET iter = 10
-WHILE iter > 0 REPEAT
-    PRINT iter
-    LET iter = iter - 1
-    IF iter < 4 THEN
-        GOTO DONE
-    ENDIF
-ENDWHILE 
-LABEL DONE
-PRINT "Done."
-"#;
+    let args = <Args as clap::Parser>::parse();
 
-    let lexer = Lexer::new(s);
+    let s = std::fs::read_to_string(args.input_file).expect("failed to read input file");
+
+    let lexer = Lexer::new(&s);
     let mut parser = Parser::new(lexer, Emitter::new());
     parser.program();
     parser.emitter.write_out();
