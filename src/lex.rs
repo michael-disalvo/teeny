@@ -38,6 +38,7 @@ enum StartOperator {
     EQ,
     GT,
     LT,
+    NOT,
 }
 
 impl StartOperator {
@@ -46,6 +47,7 @@ impl StartOperator {
             StartOperator::EQ => Token::EQEQ,
             StartOperator::GT => Token::GTEQ,
             StartOperator::LT => Token::LTEQ,
+            StartOperator::NOT => Token::NOTEQ,
         }
     }
 
@@ -54,6 +56,7 @@ impl StartOperator {
             StartOperator::EQ => Token::EQ,
             StartOperator::GT => Token::GT,
             StartOperator::LT => Token::LT,
+            StartOperator::NOT => panic!("expected '!' to be followed by '='"),
         }
     }
 }
@@ -156,6 +159,7 @@ impl Lexer {
                                 '=' => State::InOperator(StartOperator::EQ),
                                 '>' => State::InOperator(StartOperator::GT),
                                 '<' => State::InOperator(StartOperator::LT),
+                                '!' => State::InOperator(StartOperator::NOT),
                                 '"' => State::InString,
                                 other if other.is_digit(10) => State::InNumeric(false),
                                 other if other.is_alphabetic() => State::InAlpha,
