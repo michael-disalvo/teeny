@@ -160,7 +160,15 @@ impl Parser {
             },
             Token::INPUT => match self.lexer.next_token() {
                 Token::IDENT(symbol) => {
-                    self.symbols.insert(symbol);
+                    if self.symbols.insert(symbol.clone()) {
+                        self.emitter
+                            .emit_line(format!("float {};", symbol).as_str());
+                    }
+                    self.emitter
+                        .emit_line(format!("if(0 == scanf(\"%f\", &{})) {{", symbol).as_str());
+                    self.emitter.emit_line(format!("{} = 0;", symbol).as_str());
+                    self.emitter.emit_line(r#"scanf("%*s");"#);
+                    self.emitter.emit_line("}");
                 }
                 other => panic!("Parser error. Expected identifier but found {:?}", other),
             },
