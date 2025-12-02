@@ -48,6 +48,14 @@ impl Parser {
                 self.check_symbol(&symbol);
                 self.emitter.emit(&symbol);
             }
+            Token::OPENPAREN => {
+                self.emitter.emit("(");
+                self.expression();
+                if !matches!(self.lexer.next_token(), Token::CLOSEPAREN) {
+                    panic!("Parse error. Missing close paren after expression")
+                }
+                self.emitter.emit(")");
+            }
             other => panic!(
                 "Parse error. Expected number or identifier but found {:?}",
                 other

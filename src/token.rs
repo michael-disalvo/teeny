@@ -6,6 +6,8 @@ pub enum Token {
     NUMBER(String) = 1,
     IDENT(String) = 2,
     STRING(String) = 3,
+    OPENPAREN = 4,
+    CLOSEPAREN = 5,
     // Keywords
     LABEL = 101,
     GOTO = 102,

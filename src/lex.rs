@@ -155,6 +155,8 @@ impl Lexer {
                                 '-' => State::Finished(Token::MINUS),
                                 '*' => State::Finished(Token::ASTERISK),
                                 '/' => State::Finished(Token::SLASH),
+                                '(' => State::Finished(Token::OPENPAREN),
+                                ')' => State::Finished(Token::CLOSEPAREN),
                                 '\n' => State::Finished(Token::NEWLINE),
                                 '=' => State::InOperator(StartOperator::EQ),
                                 '>' => State::InOperator(StartOperator::GT),
@@ -337,6 +339,8 @@ mod test {
     #[test]
     fn test_lexing_success() {
         let inputs = vec![
+            r#"LET Y = 5 * (3 + 2)"#,
+            r#"IF X != 5"#,
             r#"LET XΔ = 6"#,
             r#"LET X = -4.6
 LET Y2 = 3.2
@@ -349,6 +353,28 @@ ENDIF"#,
         let answers = {
             use Token::*;
             vec![
+                vec![
+                    LET,
+                    IDENT("Y".to_string()),
+                    EQ,
+                    NUMBER("5".to_string()),
+                    ASTERISK,
+                    OPENPAREN,
+                    NUMBER("3".to_string()),
+                    PLUS,
+                    NUMBER("2".to_string()),
+                    CLOSEPAREN,
+                    NEWLINE,
+                    EOF,
+                ],
+                vec![
+                    IF,
+                    IDENT("X".to_string()),
+                    NOTEQ,
+                    NUMBER("5".to_string()),
+                    NEWLINE,
+                    EOF,
+                ],
                 vec![
                     LET,
                     IDENT("XΔ".to_string()),
