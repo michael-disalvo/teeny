@@ -20,6 +20,8 @@ pub enum Token {
     WHILE = 109,
     REPEAT = 110,
     ENDWHILE = 111,
+    ELSE = 112,
+    ELSEIF = 113,
     // Operators
     EQ = 201,
     PLUS = 202,
@@ -86,6 +88,8 @@ impl Token {
             "WHILE" => Some(Token::WHILE),
             "REPEAT" => Some(Token::REPEAT),
             "ENDWHILE" => Some(Token::ENDWHILE),
+            "ELSE" => Some(Token::ELSE),
+            "ELSEIF" => Some(Token::ELSEIF),
             _ => None,
         }
     }

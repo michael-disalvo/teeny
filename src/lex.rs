@@ -61,7 +61,7 @@ impl StartOperator {
     }
 }
 
-fn is_operator(ch: char) -> bool {
+fn can_delimit_identifier(ch: char) -> bool {
     matches!(ch, '+' | '-' | '*' | '/' | '=' | '>' | '<' | ')')
 }
 
@@ -248,7 +248,7 @@ impl Lexer {
                             self.next_char();
                             State::InAlpha
                         }
-                        ch if is_operator(ch) => {
+                        ch if can_delimit_identifier(ch) => {
                             State::Finished(Token::try_keyword_or_ident(token_string.clone()))
                         }
                         w if w.is_ascii_whitespace() => {
@@ -350,6 +350,9 @@ mod test {
     #[test]
     fn test_lexing_success() {
         let inputs = vec![
+            "IF THEN ELSEIF ELSE",
+            "IF THEN ELSE",
+            r#"!(X && Y) || Z && !A"#,
             r#"LET Y = 5 * (3 + 2)"#,
             r#"IF X != 5"#,
             r#"LET XΔ = 6"#,
@@ -364,6 +367,23 @@ ENDIF"#,
         let answers = {
             use Token::*;
             vec![
+                vec![IF, THEN, ELSEIF, ELSE, NEWLINE, EOF],
+                vec![IF, THEN, ELSE, NEWLINE, EOF],
+                vec![
+                    NOT,
+                    OPENPAREN,
+                    IDENT("X".to_string()),
+                    AND,
+                    IDENT("Y".to_string()),
+                    CLOSEPAREN,
+                    OR,
+                    IDENT("Z".to_string()),
+                    AND,
+                    NOT,
+                    IDENT("A".to_string()),
+                    NEWLINE,
+                    EOF,
+                ],
                 vec![
                     LET,
                     IDENT("Y".to_string()),

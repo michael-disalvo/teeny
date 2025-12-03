@@ -119,6 +119,25 @@ impl Parser {
         }
     }
 
+    fn if_block(&mut self) {
+        self.expression();
+        match self.lexer.next_token() {
+            Token::THEN => self.emitter.emit_line(") {"),
+            other => panic!("Parser error. Expected THEN but found {:?}", other),
+        }
+
+        self.newline();
+
+        while !matches!(
+            self.lexer.peek_token(),
+            Token::ENDIF | Token::ELSEIF | Token::ELSE
+        ) {
+            self.statement();
+        }
+
+        self.emitter.emit_line("}");
+    }
+
     fn statement(&mut self) {
         match self.lexer.next_token() {
             Token::EOF => unreachable!(),
@@ -138,16 +157,23 @@ impl Parser {
             }
             Token::IF => {
                 self.emitter.emit("if(");
-                self.expression();
-                match self.lexer.next_token() {
-                    Token::THEN => self.emitter.emit_line(") {"),
-                    other => panic!("Parser error. Expected THEN but found {:?}", other),
+                self.if_block();
+
+                while matches!(self.lexer.peek_token(), Token::ELSEIF) {
+                    self.emitter.emit("else if(");
+                    self.lexer.next_token();
+                    self.if_block();
                 }
 
-                self.newline();
-                while *self.lexer.peek_token() != Token::ENDIF {
-                    self.statement();
+                if matches!(self.lexer.peek_token(), Token::ELSE) {
+                    self.lexer.next_token();
+                    self.newline();
+                    self.emitter.emit_line("else {");
+                    while !matches!(self.lexer.peek_token(), Token::ENDIF) {
+                        self.statement();
+                    }
                 }
+
                 self.lexer.next_token();
                 self.emitter.emit_line("}");
             }
