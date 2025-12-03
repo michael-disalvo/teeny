@@ -63,44 +63,59 @@ impl Parser {
         }
     }
 
-    fn unary(&mut self) {
+    fn unary_expr(&mut self) {
         if matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
             self.emitter.emit(self.lexer.next_token().text());
         }
         self.primary()
     }
 
-    fn term(&mut self) {
-        self.unary();
+    fn term_expr(&mut self) {
+        self.unary_expr();
 
         while matches!(self.lexer.peek_token(), Token::SLASH | Token::ASTERISK) {
             self.emitter.emit(self.lexer.next_token().text());
-            self.unary();
+            self.unary_expr();
+        }
+    }
+
+    fn math_expr(&mut self) {
+        self.term_expr();
+        while matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
+            self.emitter.emit(self.lexer.next_token().text());
+            self.term_expr();
+        }
+    }
+
+    fn comparison_expr(&mut self) {
+        self.math_expr();
+
+        while self.lexer.peek_token().is_comparator() {
+            self.emitter.emit(self.lexer.next_token().text());
+            self.math_expr();
+        }
+    }
+
+    fn not_expr(&mut self) {
+        if matches!(self.lexer.peek_token(), Token::NOT) {
+            self.emitter.emit(self.lexer.next_token().text());
+        }
+        self.comparison_expr();
+    }
+
+    fn and_expr(&mut self) {
+        self.not_expr();
+        while matches!(self.lexer.peek_token(), Token::AND) {
+            self.emitter.emit(self.lexer.next_token().text());
+            self.not_expr();
         }
     }
 
     fn expression(&mut self) {
-        self.term();
-
-        while matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
+        self.and_expr();
+        while matches!(self.lexer.peek_token(), Token::OR) {
             self.emitter.emit(self.lexer.next_token().text());
-            self.term();
-        }
-    }
-
-    fn comparison(&mut self) {
-        self.expression();
-
-        if !self.lexer.peek_token().is_comparator() {
-            panic!(
-                "Parse error. Expected comparator, found {:?}",
-                self.lexer.peek_token()
-            );
-        }
-
-        while self.lexer.peek_token().is_comparator() {
-            self.emitter.emit(self.lexer.next_token().text());
-            self.expression();
+            self.and_expr();
         }
     }
 
@@ -123,7 +138,7 @@ impl Parser {
             }
             Token::IF => {
                 self.emitter.emit("if(");
-                self.comparison();
+                self.expression();
                 match self.lexer.next_token() {
                     Token::THEN => self.emitter.emit_line(") {"),
                     other => panic!("Parser error. Expected THEN but found {:?}", other),
@@ -138,7 +153,7 @@ impl Parser {
             }
             Token::WHILE => {
                 self.emitter.emit("while (");
-                self.comparison();
+                self.expression();
                 match self.lexer.next_token() {
                     Token::REPEAT => self.emitter.emit_line(") {"),
                     other => panic!("Parser error. Expected REPEAT but found {:?}", other),

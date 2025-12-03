@@ -56,13 +56,13 @@ impl StartOperator {
             StartOperator::EQ => Token::EQ,
             StartOperator::GT => Token::GT,
             StartOperator::LT => Token::LT,
-            StartOperator::NOT => panic!("expected '!' to be followed by '='"),
+            StartOperator::NOT => Token::NOT,
         }
     }
 }
 
 fn is_operator(ch: char) -> bool {
-    matches!(ch, '+' | '-' | '*' | '/' | '=' | '>' | '<')
+    matches!(ch, '+' | '-' | '*' | '/' | '=' | '>' | '<' | ')')
 }
 
 #[allow(dead_code)]
@@ -158,6 +158,17 @@ impl Lexer {
                                 '(' => State::Finished(Token::OPENPAREN),
                                 ')' => State::Finished(Token::CLOSEPAREN),
                                 '\n' => State::Finished(Token::NEWLINE),
+                                start if matches!(start, '&' | '|') => {
+                                    let next_ch = self.next_char();
+                                    if next_ch.is_none_or(|ch| ch != start) {
+                                        panic!(
+                                            "Lexer error. Saw {:?}, expected another {}",
+                                            next_ch, start
+                                        )
+                                    }
+                                    let token = if start == '&' { Token::AND } else { Token::OR };
+                                    State::Finished(token)
+                                }
                                 '=' => State::InOperator(StartOperator::EQ),
                                 '>' => State::InOperator(StartOperator::GT),
                                 '<' => State::InOperator(StartOperator::LT),

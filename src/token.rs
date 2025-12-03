@@ -32,6 +32,9 @@ pub enum Token {
     LTEQ,
     GT = 210,
     GTEQ = 211,
+    OR = 212,
+    AND = 213,
+    NOT = 214,
 }
 
 impl Token {
@@ -52,7 +55,10 @@ impl Token {
             LTEQ => "<=",
             GT => ">",
             GTEQ => ">=",
-            _ => "",
+            NOT => "!",
+            AND => "&&",
+            OR => "||",
+            other => panic!("Internal error, no text for {:?}", other),
         }
     }
 
