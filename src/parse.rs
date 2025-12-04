@@ -2,6 +2,59 @@ use crate::lex::Lexer;
 use crate::{Emitter, Token};
 use std::collections::HashSet;
 
+pub enum BinaryOp {
+    Plus,
+    Minus,
+    Slash,
+    Asterisk,
+    And,
+    Or,
+}
+
+pub enum UnaryOp {
+    Plus,
+    Minus,
+    Not,
+}
+
+pub enum Expr {
+    Binary(BinaryOp, Box<Expr>, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
+    Number(String),
+    Identifier(String),
+}
+
+pub struct IfBranch {
+    pub condition: Expr,
+    pub body: Vec<Stmt>,
+}
+
+pub struct IfStmt {
+    pub first_branch: IfBranch,
+    pub other_branches: Vec<IfBranch>,
+    pub else_body: Option<Vec<Stmt>>,
+}
+
+pub struct WhileStmt {
+    pub condition: Expr,
+    pub body: Vec<Stmt>,
+}
+
+pub enum PrintValue {
+    Str(String),
+    Expr(Expr),
+}
+
+pub enum Stmt {
+    Print(PrintValue),
+    If(IfStmt),
+    While(WhileStmt),
+    Label(String),
+    Goto(String),
+    Input(String),
+    Let(String, Expr),
+}
+
 pub struct Parser {
     lexer: Lexer,
     pub emitter: Emitter,
@@ -119,7 +172,7 @@ impl Parser {
         }
     }
 
-    fn if_block(&mut self) {
+    fn if_branch(&mut self) {
         self.expression();
         match self.lexer.next_token() {
             Token::THEN => self.emitter.emit_line(") {"),
@@ -130,7 +183,7 @@ impl Parser {
 
         while !matches!(
             self.lexer.peek_token(),
-            Token::ENDIF | Token::ELSEIF | Token::ELSE
+            Token::ENDIF | Token::ELSEIF | Token::ELSE,
         ) {
             self.statement();
         }
@@ -157,12 +210,13 @@ impl Parser {
             }
             Token::IF => {
                 self.emitter.emit("if(");
-                self.if_block();
+
+                self.if_branch();
 
                 while matches!(self.lexer.peek_token(), Token::ELSEIF) {
                     self.emitter.emit("else if(");
                     self.lexer.next_token();
-                    self.if_block();
+                    self.if_branch();
                 }
 
                 if matches!(self.lexer.peek_token(), Token::ELSE) {
