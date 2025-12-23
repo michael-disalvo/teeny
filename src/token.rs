@@ -39,6 +39,27 @@ pub enum Token {
     NOT = 214,
 }
 
+pub enum BinaryOp {
+    Plus,
+    Minus,
+    Slash,
+    Asterisk,
+    And,
+    Or,
+    Gt,
+    Lt,
+    GtEq,
+    LtEq,
+    EqEq,
+    NotEq,
+}
+
+pub enum UnaryOp {
+    Plus,
+    Minus,
+    Not,
+}
+
 impl Token {
     pub fn text(&self) -> &str {
         use Token::*;
@@ -61,6 +82,33 @@ impl Token {
             AND => "&&",
             OR => "||",
             other => panic!("Internal error, no text for {:?}", other),
+        }
+    }
+
+    pub fn binary_op(&self) -> Option<BinaryOp> {
+        match self {
+            Token::PLUS => Some(BinaryOp::Plus),
+            Token::MINUS => Some(BinaryOp::Minus),
+            Token::SLASH => Some(BinaryOp::Slash),
+            Token::ASTERISK => Some(BinaryOp::Asterisk),
+            Token::EQEQ => Some(BinaryOp::EqEq),
+            Token::NOTEQ => Some(BinaryOp::NotEq),
+            Token::LT => Some(BinaryOp::Lt),
+            Token::GT => Some(BinaryOP::Gt),
+            Token::LTEQ => Some(BinaryOp::LtEq),
+            Token::GTEQ => Some(BinaryOp::GtEq),
+            Token::OR => Some(BinaryOp::Or),
+            Token::AND => Some(BinaryOp::And),
+            _ => None,
+        }
+    }
+
+    pub fn unary_op(&self) -> Option<UnaryOp> {
+        match self {
+            Token::PLUS => Some(UnaryOp::Plus),
+            Token::MINUS => Some(UnaryOp::Minus),
+            Token::NOT => Some(UnaryOp::Not),
+            _ => None,
         }
     }
 
