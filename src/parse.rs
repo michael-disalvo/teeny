@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use crate::token::{BinaryOp, UnaryOp};
 
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
@@ -11,27 +12,32 @@ pub enum Expr {
     Identifier(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct IfBranch {
     pub condition: Expr,
     pub body: Vec<Stmt>,
 }
 
+#[derive(Debug, Clone)]
 pub struct IfStmt {
     pub first_branch: IfBranch,
     pub other_branches: Vec<IfBranch>,
     pub else_body: Option<Vec<Stmt>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct WhileStmt {
     pub condition: Expr,
     pub body: Vec<Stmt>,
 }
 
+#[derive(Debug, Clone)]
 pub enum PrintValue {
     Str(String),
     Expr(Expr),
 }
 
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Print(PrintValue),
     If(IfStmt),
@@ -44,21 +50,11 @@ pub enum Stmt {
 
 pub struct Parser {
     lexer: Lexer,
-    pub emitter: Emitter,
-    symbols: HashSet<String>,
-    labels_declared: HashSet<String>,
-    labels_gotoed: HashSet<String>,
 }
 
 impl Parser {
-    pub fn new(lexer: Lexer, emitter: Emitter) -> Self {
-        Self {
-            lexer,
-            emitter,
-            symbols: Default::default(),
-            labels_declared: Default::default(),
-            labels_gotoed: Default::default(),
-        }
+    pub fn new(lexer: Lexer) -> Self {
+        Self { lexer }
     }
     fn newline_optional(&mut self) {
         while *self.lexer.peek_token() == Token::NEWLINE {
@@ -73,19 +69,13 @@ impl Parser {
         }
     }
 
-    fn check_symbol(&mut self, symbol: &str) {
-        if !self.symbols.contains(symbol) {
-            panic!("Parse error. Unknown symbol \"{}\"", symbol);
-        }
-    }
-
     fn primary(&mut self) -> Expr {
         match self.lexer.next_token() {
             Token::NUMBER(n) => Expr::Number(n),
             Token::IDENT(s) => Expr::Identifier(s),
             Token::OPENPAREN => {
                 let expr = self.expression();
-                if !matches!(self.lexer.next_tokne(), Token::CLOSEPAREN) {
+                if !matches!(self.lexer.next_token(), Token::CLOSEPAREN) {
                     panic!("Parse error. Missing close paren after expression")
                 }
                 expr
@@ -98,10 +88,11 @@ impl Parser {
     }
 
     fn unary_expr(&mut self) -> Expr {
-        if matches!(self.lexer.peek_token(), Token::PLUS | Tokne::MINUS) {
-            let unary_op = match self.lexer.next_tokne() {
+        if matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
+            let unary_op = match self.lexer.next_token() {
                 Token::PLUS => UnaryOp::Plus,
                 Token::MINUS => UnaryOp::Minus,
+                _ => unreachable!(),
             };
 
             let expr = Box::new(self.primary());
@@ -115,12 +106,12 @@ impl Parser {
         let mut lhs = self.unary_expr();
 
         while matches!(self.lexer.peek_token(), Token::SLASH | Token::ASTERISK) {
-            let binary_op = self.lexer.next_token() {
+            let binary_op = match self.lexer.next_token() {
                 Token::SLASH => BinaryOp::Slash,
-                Tokne::ASTERISK => BinaryOp::Asterisk,
+                Token::ASTERISK => BinaryOp::Asterisk,
                 _ => unreachable!(),
             };
-            
+
             let rhs = self.unary_expr();
             lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
         }
@@ -131,7 +122,7 @@ impl Parser {
     fn math_expr(&mut self) -> Expr {
         let mut lhs = self.term_expr();
         while matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
-            let binary_op = self.lexer.next_token() {
+            let binary_op = match self.lexer.next_token() {
                 Token::PLUS => BinaryOp::Plus,
                 Token::MINUS => BinaryOp::Minus,
                 _ => unreachable!(),
@@ -147,9 +138,13 @@ impl Parser {
         let mut lhs = self.math_expr();
 
         while self.lexer.peek_token().is_comparator() {
-            let binary_op = self.lexer.next_token().binary_op().expect("checked for comparator");
+            let binary_op = self
+                .lexer
+                .next_token()
+                .binary_op()
+                .expect("checked for comparator");
             let rhs = self.math_expr();
-            lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs)); 
+            lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
         }
         lhs
     }
@@ -158,7 +153,7 @@ impl Parser {
         if matches!(self.lexer.peek_token(), Token::NOT) {
             let unary_op = UnaryOp::Not;
             let _ = self.lexer.next_token();
-            Expr::Unary(unary_op, Box::new(self.comparison_expr()));
+            Expr::Unary(unary_op, Box::new(self.comparison_expr()))
         } else {
             self.comparison_expr()
         }
@@ -168,7 +163,7 @@ impl Parser {
         let mut lhs = self.not_expr();
         while matches!(self.lexer.peek_token(), Token::AND) {
             let rhs = self.not_expr();
-            lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
+            lhs = Expr::Binary(BinaryOp::And, Box::new(lhs), Box::new(rhs));
         }
         lhs
     }
@@ -177,7 +172,7 @@ impl Parser {
         let mut lhs = self.and_expr();
         while matches!(self.lexer.peek_token(), Token::OR) {
             let rhs = self.and_expr();
-            lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
+            lhs = Expr::Binary(BinaryOp::Or, Box::new(lhs), Box::new(rhs));
         }
         lhs
     }
@@ -185,8 +180,9 @@ impl Parser {
     fn if_branch(&mut self) -> IfBranch {
         let condition = self.expression();
 
-        if !matches!(self.lexer.next_token(), Token::THEN) {
-            other => panic!("Parser error. Expected THEN but found {:?}", other);
+        let next_token = self.lexer.next_token();
+        if !matches!(next_token, Token::THEN) {
+            panic!("Parser error. Expected THEN but found {:?}", next_token);
         }
 
         self.newline();
@@ -199,131 +195,121 @@ impl Parser {
             body.push(self.statement());
         }
 
-        IfBranch {
-            condition,
-            body,
-        }
+        IfBranch { condition, body }
     }
 
-    fn statement(&mut self) {
-        match self.lexer.next_token() {
-            Token::EOF => unreachable!(),
+    fn statement(&mut self) -> Stmt {
+        let stmt = match self.lexer.next_token() {
+            Token::EOF => {
+                panic!("Parser error: Expected start of statement but reached end of file")
+            }
             Token::PRINT => {
-                match self.lexer.peek_token() {
+                let print_value = match self.lexer.peek_token().clone() {
                     Token::STRING(s) => {
-                        self.emitter.emit(format!("\"{}\\n\"", s).as_str());
                         let _ = self.lexer.next_token();
+                        PrintValue::Str(s)
                     }
-                    _ => {
-                        self.emitter.emit(r#""%.2f\n", (float)"#);
-                        self.expression();
-                    }
-                }
-                self.emitter.emit_line(");");
+                    _ => PrintValue::Expr(self.expression()),
+                };
+
+                Stmt::Print(print_value)
             }
             Token::IF => {
-                self.emitter.emit("if(");
+                let first_branch = self.if_branch();
 
-                self.if_branch();
-
+                let mut other_branches = Vec::new();
                 while matches!(self.lexer.peek_token(), Token::ELSEIF) {
-                    self.emitter.emit("else if(");
                     self.lexer.next_token();
-                    self.if_branch();
+                    other_branches.push(self.if_branch());
                 }
 
-                if matches!(self.lexer.peek_token(), Token::ELSE) {
+                let else_body = if matches!(self.lexer.peek_token(), Token::ELSE) {
                     self.lexer.next_token();
                     self.newline();
-                    self.emitter.emit_line("else {");
+
+                    let mut stmts = Vec::new();
                     while !matches!(self.lexer.peek_token(), Token::ENDIF) {
-                        self.statement();
+                        stmts.push(self.statement())
                     }
+                    Some(stmts)
+                } else {
+                    None
+                };
+
+                // consume the last seen ENDIF
+                if !matches!(self.lexer.next_token(), Token::ENDIF) {
+                    panic!("Parse error: Expected next token to be ENDIF")
                 }
 
-                self.lexer.next_token();
-                self.emitter.emit_line("}");
+                Stmt::If(IfStmt {
+                    first_branch,
+                    other_branches,
+                    else_body,
+                })
             }
             Token::WHILE => {
-                self.emitter.emit("while (");
-                self.expression();
+                let condition = self.expression();
+
                 match self.lexer.next_token() {
-                    Token::REPEAT => self.emitter.emit_line(") {"),
+                    Token::REPEAT => {}
                     other => panic!("Parser error. Expected REPEAT but found {:?}", other),
                 }
                 self.newline();
+
+                let mut body = Vec::new();
                 while *self.lexer.peek_token() != Token::ENDWHILE {
-                    self.statement();
+                    body.push(self.statement());
                 }
-                self.emitter.emit_line("}");
+
+                // consume the ENDWHILE
                 self.lexer.next_token();
+
+                Stmt::While(WhileStmt { condition, body })
             }
             Token::LABEL => match self.lexer.next_token() {
-                Token::IDENT(label_declared) => {
-                    self.emitter
-                        .emit_line(format!("{}: ", label_declared).as_str());
-                    self.labels_declared.insert(label_declared);
-                }
+                Token::IDENT(label) => Stmt::Label(label),
                 other => panic!("Parser error. Expected identifier but found {:?}", other),
             },
             Token::GOTO => match self.lexer.next_token() {
-                Token::IDENT(label_gotoed) => {
-                    self.emitter
-                        .emit_line(format!("goto {};", label_gotoed).as_str());
-                    self.labels_gotoed.insert(label_gotoed);
-                }
+                Token::IDENT(label) => Stmt::Goto(label),
                 other => panic!("Parser error. Expected identifier but found {:?}", other),
             },
             Token::INPUT => match self.lexer.next_token() {
-                Token::IDENT(symbol) => {
-                    if self.symbols.insert(symbol.clone()) {
-                        self.emitter
-                            .emit_line(format!("float {};", symbol).as_str());
-                    }
-                    self.emitter
-                        .emit_line(format!("if(0 == scanf(\"%f\", &{})) {{", symbol).as_str());
-                    self.emitter.emit_line(format!("{} = 0;", symbol).as_str());
-                    self.emitter.emit_line(r#"scanf("%*s");"#);
-                    self.emitter.emit_line("}");
-                }
+                Token::IDENT(symbol) => Stmt::Input(symbol),
                 other => panic!("Parser error. Expected identifier but found {:?}", other),
             },
             Token::LET => {
-                match self.lexer.next_token() {
-                    Token::IDENT(symbol) => {
-                        if self.symbols.insert(symbol.clone()) {
-                            self.emitter.emit("float ");
-                        }
-                        self.emitter.emit(&symbol);
-                    }
+                let symbol = match self.lexer.next_token() {
+                    Token::IDENT(symbol) => symbol,
                     other => panic!("Parser error. Expected identifier but found {:?}", other),
-                }
+                };
+
                 match self.lexer.next_token() {
-                    Token::EQ => self.emitter.emit("="),
+                    Token::EQ => {}
                     other => panic!("Parser error. Expected `=` but found {:?}", other),
                 }
-                self.expression();
-                self.emitter.emit_line(";");
+
+                let expr = self.expression();
+                Stmt::Let(symbol, expr)
             }
             other => panic!(
                 "Parser error. Expected start of statement but found {:?}",
                 other
             ),
-        }
+        };
 
         self.newline();
+
+        stmt
     }
 
-    pub fn program(&mut self) {
+    pub fn program(&mut self) -> Vec<Stmt> {
         self.newline_optional();
+        let mut stmts = Vec::new();
         while !self.lexer.peek_token().is_eof() {
-            self.statement()
+            stmts.push(self.statement())
         }
 
-        for label_gotoed in &self.labels_gotoed {
-            if !self.labels_declared.contains(label_gotoed) {
-                panic!("Parser error. Unknown label gotoed: \"{}\"", label_gotoed);
-            }
-        }
+        stmts
     }
 }

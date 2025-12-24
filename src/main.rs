@@ -60,7 +60,8 @@ fn main() {
     let s = std::fs::read_to_string(args.input_file).expect("failed to read input file");
 
     let lexer = Lexer::new(&s);
-    let mut parser = Parser::new(lexer, Emitter::new());
-    parser.program();
-    parser.emitter.write_out();
+    let mut parser = Parser::new(lexer);
+    let ast = parser.program();
+
+    println!("AST: {:?}", ast);
 }

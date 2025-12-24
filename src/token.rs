@@ -39,6 +39,7 @@ pub enum Token {
     NOT = 214,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BinaryOp {
     Plus,
     Minus,
@@ -54,6 +55,7 @@ pub enum BinaryOp {
     NotEq,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum UnaryOp {
     Plus,
     Minus,
@@ -94,7 +96,7 @@ impl Token {
             Token::EQEQ => Some(BinaryOp::EqEq),
             Token::NOTEQ => Some(BinaryOp::NotEq),
             Token::LT => Some(BinaryOp::Lt),
-            Token::GT => Some(BinaryOP::Gt),
+            Token::GT => Some(BinaryOp::Gt),
             Token::LTEQ => Some(BinaryOp::LtEq),
             Token::GTEQ => Some(BinaryOp::GtEq),
             Token::OR => Some(BinaryOp::Or),
