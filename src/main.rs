@@ -5,6 +5,7 @@ pub use token::Token;
 mod lex;
 mod parse;
 mod token;
+mod verify;
 
 #[derive(clap::Parser)]
 #[command(version, about)]
@@ -62,6 +63,8 @@ fn main() {
     let lexer = Lexer::new(&s);
     let mut parser = Parser::new(lexer);
     let ast = parser.program();
+
+    verify::walk_tree(&ast);
 
     println!("AST: {:?}", ast);
 }
