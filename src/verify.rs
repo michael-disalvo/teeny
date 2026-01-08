@@ -8,13 +8,13 @@ struct Context {
     labels_gotoed: HashSet<String>,
 }
 
-pub fn walk_expr(expr: &Expr, context: &mut Context) {
+pub fn verify_expr(expr: &Expr, context: &mut Context) {
     match expr {
         Expr::Binary(_, lhs, rhs) => {
-            walk_expr(lhs, context);
-            walk_expr(rhs, context);
+            verify_expr(lhs, context);
+            verify_expr(rhs, context);
         }
-        Expr::Unary(_, inner) => walk_expr(inner, context),
+        Expr::Unary(_, inner) => verify_expr(inner, context),
         Expr::Number(_) => {}
         Expr::Identifier(ident) => {
             if !context.identifiers_declared.contains(ident) {
@@ -24,48 +24,48 @@ pub fn walk_expr(expr: &Expr, context: &mut Context) {
     }
 }
 
-pub fn walk_if_branch(if_branch: &IfBranch, context: &mut Context) {
+pub fn verify_if_branch(if_branch: &IfBranch, context: &mut Context) {
     let IfBranch { condition, body } = if_branch;
 
-    walk_expr(condition, context);
+    verify_expr(condition, context);
 
     for stmt in body {
-        walk_stmt(stmt, context);
+        verify_stmt(stmt, context);
     }
 }
 
-pub fn walk_if_stmt(if_stmt: &IfStmt, context: &mut Context) {
+pub fn verify_if_stmt(if_stmt: &IfStmt, context: &mut Context) {
     let IfStmt {
         first_branch,
         other_branches,
         else_body,
     } = if_stmt;
 
-    walk_if_branch(first_branch, context);
+    verify_if_branch(first_branch, context);
     for other_branch in other_branches {
-        walk_if_branch(other_branch, context)
+        verify_if_branch(other_branch, context)
     }
     if let Some(body) = else_body {
         for stmt in body {
-            walk_stmt(stmt, context);
+            verify_stmt(stmt, context);
         }
     }
 }
 
-pub fn walk_while_stmt(while_stmt: &WhileStmt, context: &mut Context) {
+pub fn verify_while_stmt(while_stmt: &WhileStmt, context: &mut Context) {
     let WhileStmt { condition, body } = while_stmt;
 
-    walk_expr(condition, context);
+    verify_expr(condition, context);
     for stmt in body {
-        walk_stmt(stmt, context)
+        verify_stmt(stmt, context)
     }
 }
 
-pub fn walk_stmt(stmt: &Stmt, context: &mut Context) {
+pub fn verify_stmt(stmt: &Stmt, context: &mut Context) {
     match stmt {
         Stmt::Print(_) => {}
-        Stmt::If(if_stmt) => walk_if_stmt(if_stmt, context),
-        Stmt::While(while_stmt) => walk_while_stmt(while_stmt, context),
+        Stmt::If(if_stmt) => verify_if_stmt(if_stmt, context),
+        Stmt::While(while_stmt) => verify_while_stmt(while_stmt, context),
         Stmt::Label(label) => {
             context.labels_declared.insert(label.clone());
         }
@@ -77,15 +77,15 @@ pub fn walk_stmt(stmt: &Stmt, context: &mut Context) {
         }
         Stmt::Let(ident, expr) => {
             context.identifiers_declared.insert(ident.clone());
-            walk_expr(expr, context);
+            verify_expr(expr, context);
         }
     }
 }
 
-pub fn walk_tree(ast: &[Stmt]) {
+pub fn verify_tree(ast: &[Stmt]) {
     let mut context = Context::default();
     for stmt in ast {
-        walk_stmt(stmt, &mut context)
+        verify_stmt(stmt, &mut context)
     }
 
     for label_gotoed in context.labels_gotoed {

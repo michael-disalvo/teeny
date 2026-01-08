@@ -62,6 +62,35 @@ pub enum UnaryOp {
     Not,
 }
 
+impl UnaryOp {
+    pub fn text(&self) -> &str {
+        match self {
+            UnaryOp::Plus => "+",
+            UnaryOp::Minus => "-",
+            UnaryOp::Not => "!",
+        }
+    }
+}
+
+impl BinaryOp {
+    pub fn text(&self) -> &str {
+        match self {
+            BinaryOp::Plus => "+",
+            BinaryOp::Minus => "-",
+            BinaryOp::Slash => "/",
+            BinaryOp::Asterisk => "*",
+            BinaryOp::And => "&&",
+            BinaryOp::Or => "||",
+            BinaryOp::Gt => ">",
+            BinaryOp::Lt => "<",
+            BinaryOp::GtEq => ">=",
+            BinaryOp::LtEq => "<=",
+            BinaryOp::EqEq => "==",
+            BinaryOp::NotEq => "!=",
+        }
+    }
+}
+
 impl Token {
     pub fn text(&self) -> &str {
         use Token::*;

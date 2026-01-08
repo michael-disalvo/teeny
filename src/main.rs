@@ -1,5 +1,5 @@
 use lex::Lexer;
-use parse::Parser;
+use parse::{Expr, IfBranch, IfStmt, Parser, PrintValue, Stmt, WhileStmt};
 pub use token::Token;
 
 mod lex;
@@ -32,12 +32,12 @@ impl Emitter {
         slf
     }
 
-    pub fn emit(&mut self, code: &str) {
-        self.code += code;
+    pub fn emit(&mut self, code: impl AsRef<str>) {
+        self.code += code.as_ref();
     }
 
-    pub fn emit_line(&mut self, code: &str) {
-        self.emit(code);
+    pub fn emit_line(&mut self, code: impl AsRef<str>) {
+        self.emit(code.as_ref());
         self.code += "\n";
     }
 
@@ -55,6 +55,108 @@ impl Emitter {
     }
 }
 
+pub fn emit_expr(expr: &Expr, emitter: &mut Emitter) {
+    emitter.emit("(");
+    match expr {
+        Expr::Identifier(id) => emitter.emit(id),
+        Expr::Number(n) => emitter.emit(n),
+        Expr::Unary(op, expr) => {
+            emitter.emit(op.text());
+            emit_expr(expr, emitter);
+        }
+        Expr::Binary(op, lhs, rhs) => {
+            emit_expr(lhs, emitter);
+            emitter.emit(op.text());
+            emit_expr(rhs, emitter);
+        }
+    }
+    emitter.emit(")");
+}
+
+pub fn emit_if_branch(if_branch: &IfBranch, emitter: &mut Emitter) {
+    emitter.emit("(");
+    emit_expr(&if_branch.condition, emitter);
+    emitter.emit_line(") {");
+    for stmt in &if_branch.body {
+        emit_stmt(stmt, emitter);
+    }
+
+    emitter.emit("}");
+}
+
+pub fn emit_if_stmt(if_stmt: &IfStmt, emitter: &mut Emitter) {
+    emitter.emit("if ");
+    emit_if_branch(&if_stmt.first_branch, emitter);
+    for branch in &if_stmt.other_branches {
+        emitter.emit(" else if ");
+        emit_if_branch(branch, emitter);
+    }
+
+    if let Some(else_body) = &if_stmt.else_body {
+        emitter.emit_line(" else {");
+        for stmt in else_body {
+            emit_stmt(stmt, emitter);
+        }
+    }
+
+    emitter.emit_line("}");
+}
+
+pub fn emit_while_stmt(while_stmt: &WhileStmt, emitter: &mut Emitter) {
+    emitter.emit("while (");
+    emit_expr(&while_stmt.condition, emitter);
+    emitter.emit_line(") {");
+
+    for stmt in &while_stmt.body {
+        emit_stmt(stmt, emitter);
+    }
+
+    emitter.emit_line("}");
+}
+
+pub fn emit_print_stmt(print_value: &PrintValue, emitter: &mut Emitter) {
+    emitter.emit("printf(");
+
+    match print_value {
+        PrintValue::Str(s) => emitter.emit_line(format!("\"{}\\n\");", s)),
+        PrintValue::Expr(expr) => {
+            emitter.emit("\"%.2f\\n\", (float)");
+            emit_expr(expr, emitter);
+            emitter.emit_line(");");
+        }
+    }
+}
+
+pub fn emit_input(ident: &str, emitter: &mut Emitter) {
+    emitter.emit_line(format!("float {};", ident));
+    emitter.emit_line(format!("if(0 == scanf(\"%f\", &{})) {{", ident));
+    emitter.emit_line(format!("{} = 0;", ident));
+    emitter.emit_line("scanf(\"%*s\");");
+    emitter.emit_line("}");
+}
+
+pub fn emit_stmt(stmt: &Stmt, emitter: &mut Emitter) {
+    match stmt {
+        Stmt::Print(pv) => emit_print_stmt(pv, emitter),
+        Stmt::If(if_stmt) => emit_if_stmt(if_stmt, emitter),
+        Stmt::While(while_stmt) => emit_while_stmt(while_stmt, emitter),
+        Stmt::Label(s) => emitter.emit_line(format!("{}:", s)),
+        Stmt::Goto(s) => emitter.emit_line(format!("goto {};", s)),
+        Stmt::Input(s) => emit_input(s, emitter),
+        Stmt::Let(s, expr) => {
+            emitter.emit(format!("float {} = ", s));
+            emit_expr(expr, emitter);
+            emitter.emit_line(";");
+        }
+    }
+}
+
+pub fn emit_tree(ast: &[Stmt], emitter: &mut Emitter) {
+    for stmt in ast {
+        emit_stmt(stmt, emitter)
+    }
+}
+
 fn main() {
     let args = <Args as clap::Parser>::parse();
 
@@ -64,7 +166,9 @@ fn main() {
     let mut parser = Parser::new(lexer);
     let ast = parser.program();
 
-    verify::walk_tree(&ast);
+    verify::verify_tree(&ast);
 
-    println!("AST: {:?}", ast);
+    let mut emitter = Emitter::new();
+    emit_tree(&ast, &mut emitter);
+    emitter.write_out();
 }

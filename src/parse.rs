@@ -162,6 +162,7 @@ impl Parser {
     fn and_expr(&mut self) -> Expr {
         let mut lhs = self.not_expr();
         while matches!(self.lexer.peek_token(), Token::AND) {
+            let _ = self.lexer.next_token();
             let rhs = self.not_expr();
             lhs = Expr::Binary(BinaryOp::And, Box::new(lhs), Box::new(rhs));
         }
@@ -171,6 +172,7 @@ impl Parser {
     fn expression(&mut self) -> Expr {
         let mut lhs = self.and_expr();
         while matches!(self.lexer.peek_token(), Token::OR) {
+            let _ = self.lexer.next_token();
             let rhs = self.and_expr();
             lhs = Expr::Binary(BinaryOp::Or, Box::new(lhs), Box::new(rhs));
         }
