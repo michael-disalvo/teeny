@@ -61,9 +61,16 @@ pub fn verify_while_stmt(while_stmt: &WhileStmt, context: &mut Context) {
     }
 }
 
+pub fn verify_print_expr(pv: &PrintValue, context: &mut Context) {
+    match pv {
+        Str(s) => {}
+        Expr(expr) => verify_expr(expr, context),
+    }
+}
+
 pub fn verify_stmt(stmt: &Stmt, context: &mut Context) {
     match stmt {
-        Stmt::Print(_) => {}
+        Stmt::Print(pv) => verify_print_expr(pv),
         Stmt::If(if_stmt) => verify_if_stmt(if_stmt, context),
         Stmt::While(while_stmt) => verify_while_stmt(while_stmt, context),
         Stmt::Label(label) => {
@@ -76,8 +83,8 @@ pub fn verify_stmt(stmt: &Stmt, context: &mut Context) {
             context.identifiers_declared.insert(ident.clone());
         }
         Stmt::Let(ident, expr) => {
-            context.identifiers_declared.insert(ident.clone());
             verify_expr(expr, context);
+            context.identifiers_declared.insert(ident.clone());
         }
     }
 }
