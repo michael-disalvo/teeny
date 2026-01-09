@@ -1,0 +1,36 @@
+BUG FIXES:
+
+  1. verify.rs:66 - Add verification for expressions inside Stmt::Print
+  2. verify.rs:78-80 - Swap order: verify expression before inserting identifier into declared set
+  3. main.rs - Track declared variables in Emitter, only emit float x; on first use (affects emit_input and emit_stmt for Let)
+  4. parse.rs:2-3 - Remove unused imports (Emitter, HashSet)
+  5. verify.rs:21,93 - Change "Lexical error" / "Lexer error" to "Semantic error"
+
+
+NEXT STEPS:
+
+  Testing (solidify what you have):
+  - Parser tests: source string → AST, assert structure
+  - Verification tests: ensure invalid programs are rejected
+  - End-to-end tests: compile .teeny → compile C → run → check output
+
+  Error Handling (practical improvement):
+  - Add line/column numbers to error messages
+  - Return Result instead of panicking, collect multiple errors
+  - Error recovery in parser (continue after errors)
+
+  Classic Compiler Features (educational):
+  - Type system - add integers, booleans, strings as distinct types with type checking
+  - Functions - DEF ADD(X, Y) ... ENDDEF, introduces scopes and call stack concepts
+  - Arrays - LET ARR[10], indexing, bounds checking
+  - Optimization passes - constant folding (3 + 4 → 7), dead code elimination
+
+  Alternative Backends (deeper learning):
+  - Interpreter - walk the AST and execute directly instead of emitting C
+  - Stack-based VM - emit bytecode, write a simple VM to run it
+  - x86/ARM assembly - skip C, emit assembly directly (hard but rewarding)
+
+  My suggestion: An interpreter is a great next step. It's simpler than code generation, 
+     gives you immediate feedback, and teaches you about runtime execution. 
+    You already have the AST - you just need to walk it and execute instead of emit.
+
