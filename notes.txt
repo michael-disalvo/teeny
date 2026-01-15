@@ -10,7 +10,7 @@ BUG FIXES:
 NEXT STEPS:
 
   Testing (solidify what you have):
-  - ❗ Parser tests: source string → AST, assert structure
+  - ✅ Parser tests: source string → AST, assert structure
   - ❗ Verification tests: ensure invalid programs are rejected
   - End-to-end tests: compile .teeny → compile C → run → check output
 
