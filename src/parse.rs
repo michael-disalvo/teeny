@@ -1,6 +1,5 @@
+use crate::Token;
 use crate::lex::Lexer;
-use crate::{Emitter, Token};
-use std::collections::HashSet;
 
 use crate::token::{BinaryOp, UnaryOp};
 

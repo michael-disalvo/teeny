@@ -1,5 +1,6 @@
 use lex::Lexer;
 use parse::{Expr, IfBranch, IfStmt, Parser, PrintValue, Stmt, WhileStmt};
+use std::collections::HashSet;
 pub use token::Token;
 
 mod lex;
@@ -15,9 +16,10 @@ struct Args {
 }
 
 #[derive(Debug, Clone)]
-struct Emitter {
+pub struct Emitter {
     header: String,
     code: String,
+    declared_variables: HashSet<String>,
 }
 
 impl Emitter {
@@ -25,6 +27,7 @@ impl Emitter {
         let mut slf = Emitter {
             header: String::new(),
             code: String::new(),
+            declared_variables: Default::default(),
         };
 
         slf.header_line("#include <stdio.h>");
@@ -97,9 +100,10 @@ pub fn emit_if_stmt(if_stmt: &IfStmt, emitter: &mut Emitter) {
         for stmt in else_body {
             emit_stmt(stmt, emitter);
         }
+        emitter.emit("}");
     }
 
-    emitter.emit_line("}");
+    emitter.emit_line("");
 }
 
 pub fn emit_while_stmt(while_stmt: &WhileStmt, emitter: &mut Emitter) {
@@ -128,7 +132,10 @@ pub fn emit_print_stmt(print_value: &PrintValue, emitter: &mut Emitter) {
 }
 
 pub fn emit_input(ident: &str, emitter: &mut Emitter) {
-    emitter.emit_line(format!("float {};", ident));
+    if !emitter.declared_variables.contains(ident) {
+        emitter.emit_line(format!("float {};", ident));
+        emitter.declared_variables.insert(ident.to_owned());
+    }
     emitter.emit_line(format!("if(0 == scanf(\"%f\", &{})) {{", ident));
     emitter.emit_line(format!("{} = 0;", ident));
     emitter.emit_line("scanf(\"%*s\");");
@@ -142,9 +149,14 @@ pub fn emit_stmt(stmt: &Stmt, emitter: &mut Emitter) {
         Stmt::While(while_stmt) => emit_while_stmt(while_stmt, emitter),
         Stmt::Label(s) => emitter.emit_line(format!("{}:", s)),
         Stmt::Goto(s) => emitter.emit_line(format!("goto {};", s)),
-        Stmt::Input(s) => emit_input(s, emitter),
-        Stmt::Let(s, expr) => {
-            emitter.emit(format!("float {} = ", s));
+        Stmt::Input(ident) => emit_input(ident, emitter),
+        Stmt::Let(ident, expr) => {
+            if !emitter.declared_variables.contains(ident) {
+                emitter.emit(format!("float {} = ", ident));
+                emitter.declared_variables.insert(ident.clone());
+            } else {
+                emitter.emit(format!("{} = ", ident));
+            }
             emit_expr(expr, emitter);
             emitter.emit_line(";");
         }

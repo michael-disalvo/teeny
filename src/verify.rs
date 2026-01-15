@@ -2,7 +2,7 @@ use crate::parse::{Expr, IfBranch, IfStmt, PrintValue, Stmt, WhileStmt};
 use std::collections::HashSet;
 
 #[derive(Default)]
-struct Context {
+pub struct Context {
     identifiers_declared: HashSet<String>,
     labels_declared: HashSet<String>,
     labels_gotoed: HashSet<String>,
@@ -18,7 +18,7 @@ pub fn verify_expr(expr: &Expr, context: &mut Context) {
         Expr::Number(_) => {}
         Expr::Identifier(ident) => {
             if !context.identifiers_declared.contains(ident) {
-                panic!("Lexical error. Identifier `{ident}` used before declared");
+                panic!("Semantic error. Identifier `{ident}` used before declared");
             }
         }
     }
@@ -63,14 +63,14 @@ pub fn verify_while_stmt(while_stmt: &WhileStmt, context: &mut Context) {
 
 pub fn verify_print_expr(pv: &PrintValue, context: &mut Context) {
     match pv {
-        Str(s) => {}
-        Expr(expr) => verify_expr(expr, context),
+        PrintValue::Str(_) => {}
+        PrintValue::Expr(expr) => verify_expr(expr, context),
     }
 }
 
 pub fn verify_stmt(stmt: &Stmt, context: &mut Context) {
     match stmt {
-        Stmt::Print(pv) => verify_print_expr(pv),
+        Stmt::Print(pv) => verify_print_expr(pv, context),
         Stmt::If(if_stmt) => verify_if_stmt(if_stmt, context),
         Stmt::While(while_stmt) => verify_while_stmt(while_stmt, context),
         Stmt::Label(label) => {
@@ -97,7 +97,7 @@ pub fn verify_tree(ast: &[Stmt]) {
 
     for label_gotoed in context.labels_gotoed {
         if !context.labels_declared.contains(&label_gotoed) {
-            panic!("Lexer error. Label gotoed `{label_gotoed}` does not exist");
+            panic!("Semantic error. Label gotoed `{label_gotoed}` does not exist");
         }
     }
 }
