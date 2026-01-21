@@ -3,6 +3,7 @@ use parse::{Expr, IfBranch, IfStmt, Parser, PrintValue, Stmt, WhileStmt};
 use std::collections::HashSet;
 pub use token::Token;
 
+mod interpret;
 mod lex;
 mod parse;
 mod token;

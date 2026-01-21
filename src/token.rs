@@ -70,6 +70,16 @@ impl UnaryOp {
             UnaryOp::Not => "!",
         }
     }
+    pub fn eval(&self, operand: f32) -> f32 {
+        match self {
+            UnaryOp::Plus => operand,
+            UnaryOp::Minus => -operand,
+            UnaryOp::Not => match (operand as u32) {
+                0 => 1.0,
+                _ => 0.0,
+            },
+        }
+    }
 }
 
 impl BinaryOp {
