@@ -62,6 +62,10 @@ pub enum UnaryOp {
     Not,
 }
 
+pub fn to_bool(f: f32) -> bool {
+    f != 0.0
+}
+
 impl UnaryOp {
     pub fn text(&self) -> &str {
         match self {
@@ -74,10 +78,7 @@ impl UnaryOp {
         match self {
             UnaryOp::Plus => operand,
             UnaryOp::Minus => -operand,
-            UnaryOp::Not => match (operand as u32) {
-                0 => 1.0,
-                _ => 0.0,
-            },
+            UnaryOp::Not => f32::from(!to_bool(operand)),
         }
     }
 }
@@ -97,6 +98,22 @@ impl BinaryOp {
             BinaryOp::LtEq => "<=",
             BinaryOp::EqEq => "==",
             BinaryOp::NotEq => "!=",
+        }
+    }
+    pub fn eval(&self, lhs: f32, rhs: f32) -> f32 {
+        match self {
+            BinaryOp::Plus => lhs + rhs,
+            BinaryOp::Minus => lhs - rhs,
+            BinaryOp::Slash => lhs / rhs,
+            BinaryOp::Asterisk => lhs * rhs,
+            BinaryOp::And => f32::from(to_bool(lhs) && to_bool(rhs)),
+            BinaryOp::Or => f32::from(to_bool(lhs) || to_bool(rhs)),
+            BinaryOp::Gt => f32::from(lhs > rhs),
+            BinaryOp::Lt => f32::from(lhs < rhs),
+            BinaryOp::GtEq => f32::from(lhs >= rhs),
+            BinaryOp::LtEq => f32::from(lhs <= rhs),
+            BinaryOp::EqEq => f32::from(lhs == rhs),
+            BinaryOp::NotEq => f32::from(lhs != rhs),
         }
     }
 }
