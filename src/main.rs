@@ -12,7 +12,10 @@ mod verify;
 #[derive(clap::Parser)]
 #[command(version, about)]
 struct Args {
-    /// Input file of teeny code to compile
+    /// Compile the teeny program into C code
+    #[clap(short, long)]
+    compile: bool,
+    /// Input file of teeny code
     input_file: String,
 }
 
@@ -181,7 +184,14 @@ fn main() {
 
     verify::verify_tree(&ast);
 
-    let mut emitter = Emitter::new();
-    emit_tree(&ast, &mut emitter);
-    emitter.write_out();
+    if args.compile {
+        let mut emitter = Emitter::new();
+        emit_tree(&ast, &mut emitter);
+        emitter.write_out();
+    } else {
+        let mut runtime = interpret::Runtime::new();
+        for stmt in ast {
+            runtime.eval_stmt(&stmt);
+        }
+    }
 }

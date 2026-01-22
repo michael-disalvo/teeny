@@ -5,7 +5,7 @@ use std::iter;
 use std::str::FromStr;
 
 #[derive(Debug, Default)]
-struct Runtime {
+pub struct Runtime {
     variables: HashMap<String, f32>,
 }
 
@@ -61,7 +61,7 @@ impl Runtime {
             PrintValue::Str(s) => println!("{}", s),
             PrintValue::Expr(expr) => {
                 let f = self.eval_expr(expr);
-                println!("{}", f);
+                println!("{:.2}", f);
             }
         }
     }
