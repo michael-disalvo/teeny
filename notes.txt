@@ -26,7 +26,8 @@ NEXT STEPS:
   - Optimization passes - constant folding (3 + 4 → 7), dead code elimination
 
   Alternative Backends (deeper learning):
-  - ❗ Interpreter - walk the AST and execute directly instead of emitting C
+  - ✅ Interpreter - walk the AST and execute directly instead of emitting C
+    - add a REPL 
   - Stack-based VM - emit bytecode, write a simple VM to run it
   - x86/ARM assembly - skip C, emit assembly directly (hard but rewarding)
 
@@ -37,10 +38,9 @@ NEXT STEPS:
 
 TODO: 
 
-  1. Fix bugs described
+  1. ✅ Fix bugs described
   2. Improve error handling 
-  3. Add tests 
-  4. Add functions 
-  5. Write an interpreter alongside the emitter
+  3. ✅ Add tests 
+  5. ✅ Write an interpreter alongside the emitter
   6. Write a REPL for the interpreter 
 

@@ -1,4 +1,5 @@
 use crate::Token;
+use std::io::{BufRead, BufReader, Read};
 use std::iter::Peekable;
 
 struct IntoChars {
@@ -81,6 +82,53 @@ impl std::iter::Iterator for TokenIter {
             let t = self.lexer.next_token();
             self.seen_eof = t.is_eof();
             Some(t)
+        }
+    }
+}
+
+pub struct Lexer2<R> {
+    inner: BufReader<R>,
+    current_line: Option<Peekable<IntoChars>>,
+    peeked: Option<Token>,
+}
+
+impl<R: Read> Lexer2<R> {
+    pub fn new(inner: R) -> Self {
+        let inner = BufReader::new(inner);
+        Self {
+            inner,
+            current_line: None,
+            peeked: None,
+        }
+    }
+
+    fn next_line(&mut self) -> Option<String> {
+        let mut line = String::new();
+        match self.inner.read_line(&mut line) {
+            Ok(0) => None,
+            Ok(_) => {
+                if !line.ends_with('\n') {
+                    line.push('\n');
+                }
+                Some(line)
+            }
+            Err(e) => panic!("IO Error: {e:?}"),
+        }
+    }
+
+    fn next_char(&mut self) -> Option<char> {
+        loop {
+            if let Some(current_line) = &mut self.current_line {
+                match current_line.next() {
+                    Some(ch) => return Some(ch),
+                    None => self.current_line = None,
+                }
+            }
+
+            match self.next_line() {
+                Some(line) => self.current_line = Some(IntoChars::new(line).peekable()),
+                None => return None,
+            }
         }
     }
 }
