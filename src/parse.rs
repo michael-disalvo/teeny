@@ -2,6 +2,7 @@ use crate::Token;
 use crate::lex::Lexer;
 
 use crate::token::{BinaryOp, UnaryOp};
+use std::io::Read;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -47,17 +48,20 @@ pub enum Stmt {
     Let(String, Expr),
 }
 
-pub struct Parser {
-    lexer: Lexer,
+pub struct Parser<R: Read> {
+    lexer: Lexer<R>,
 }
 
-impl Parser {
+impl Parser<std::io::Cursor<String>> {
     pub fn from_str(s: &str) -> Self {
         Self {
             lexer: Lexer::new(s),
         }
     }
-    pub fn new(lexer: Lexer) -> Self {
+}
+
+impl<R: Read> Parser<R> {
+    pub fn new(lexer: Lexer<R>) -> Self {
         Self { lexer }
     }
     fn newline_optional(&mut self) {

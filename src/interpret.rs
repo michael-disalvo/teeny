@@ -115,7 +115,7 @@ impl Runtime {
 mod test {
     use super::*;
 
-    use crate::token::to_bool;
+    use crate::token::{BinaryOp, UnaryOp, to_bool};
 
     macro_rules! assert_feq {
         ($a:expr, $b:expr, $tolerance:expr) => {{

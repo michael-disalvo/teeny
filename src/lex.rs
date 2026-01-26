@@ -67,12 +67,12 @@ fn can_delimit_identifier(ch: char) -> bool {
 }
 
 #[allow(dead_code)]
-pub struct TokenIter {
-    lexer: Lexer,
+pub struct TokenIter<R> {
+    lexer: Lexer<R>,
     seen_eof: bool,
 }
 
-impl std::iter::Iterator for TokenIter {
+impl<R: Read> std::iter::Iterator for TokenIter<R> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -86,15 +86,33 @@ impl std::iter::Iterator for TokenIter {
     }
 }
 
-pub struct Lexer2<R> {
+pub struct Lexer<R> {
     inner: BufReader<R>,
     current_line: Option<Peekable<IntoChars>>,
     peeked: Option<Token>,
 }
 
-impl<R: Read> Lexer2<R> {
-    pub fn new(inner: R) -> Self {
-        let inner = BufReader::new(inner);
+impl Lexer<std::io::Cursor<String>> {
+    pub fn new(s: &str) -> Self {
+        Self {
+            inner: BufReader::new(std::io::Cursor::new(s.to_string())),
+            current_line: None,
+            peeked: None,
+        }
+    }
+}
+
+impl<R: Read> Lexer<R> {
+    #[cfg(test)]
+    pub fn tokens(self) -> TokenIter<R> {
+        TokenIter {
+            lexer: self,
+            seen_eof: false,
+        }
+    }
+
+    pub fn from_reader(rdr: R) -> Self {
+        let inner = BufReader::new(rdr);
         Self {
             inner,
             current_line: None,
@@ -131,17 +149,180 @@ impl<R: Read> Lexer2<R> {
             }
         }
     }
+
+    fn peek_char(&mut self) -> Option<char> {
+        loop {
+            if let Some(current_line) = &mut self.current_line {
+                match current_line.peek() {
+                    Some(ch) => return Some(*ch),
+                    None => self.current_line = None,
+                }
+            }
+
+            match self.next_line() {
+                Some(line) => self.current_line = Some(IntoChars::new(line).peekable()),
+                None => return None,
+            }
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while matches!(self.peek_char(), Some(' ') | Some('\t') | Some('\r')) {
+            let _ = self.next_char();
+        }
+    }
+
+    pub fn peek_token(&mut self) -> &Token {
+        if let None = self.peeked {
+            self.peeked = Some(self.next_token())
+        }
+
+        // SAFETY: a `None` variant for `self` would have been replaced by a `Some`
+        // variant in the code above.
+        unsafe { self.peeked.as_mut().unwrap_unchecked() }
+    }
+
+    pub fn next_token(&mut self) -> Token {
+        if let Some(v) = self.peeked.take() {
+            return v;
+        }
+
+        let mut token_string = String::new();
+        let mut state = State::Started;
+
+        loop {
+            state = match state {
+                State::Finished(token) => return token,
+                State::Started => {
+                    self.skip_whitespace();
+                    match self.next_char() {
+                        None => State::Finished(Token::EOF),
+                        Some(ch) => {
+                            token_string.push(ch);
+                            match ch {
+                                '+' => State::Finished(Token::PLUS),
+                                '-' => State::Finished(Token::MINUS),
+                                '*' => State::Finished(Token::ASTERISK),
+                                '/' => State::Finished(Token::SLASH),
+                                '(' => State::Finished(Token::OPENPAREN),
+                                ')' => State::Finished(Token::CLOSEPAREN),
+                                '\n' => State::Finished(Token::NEWLINE),
+                                start if matches!(start, '&' | '|') => {
+                                    let next_ch = self.next_char();
+                                    if next_ch.is_none_or(|ch| ch != start) {
+                                        panic!(
+                                            "Lexer error. Saw {:?}, expected another {}",
+                                            next_ch, start
+                                        )
+                                    }
+                                    let token = if start == '&' { Token::AND } else { Token::OR };
+                                    State::Finished(token)
+                                }
+                                '=' => State::InOperator(StartOperator::EQ),
+                                '>' => State::InOperator(StartOperator::GT),
+                                '<' => State::InOperator(StartOperator::LT),
+                                '!' => State::InOperator(StartOperator::NOT),
+                                '"' => State::InString,
+                                other if other.is_digit(10) => State::InNumeric(false),
+                                other if other.is_alphabetic() => State::InAlpha,
+                                other => panic!("Lexer error. Unknown start to token: {}", other),
+                            }
+                        }
+                    }
+                }
+                State::InString => match self.next_char() {
+                    None => panic!("Lexer error. File finished with open quote"),
+                    Some(ch) => {
+                        token_string.push(ch);
+                        match ch {
+                            '"' => {
+                                let string = token_string.trim_matches('"').to_owned();
+                                State::Finished(Token::STRING(string))
+                            }
+                            _ => State::InString,
+                        }
+                    }
+                },
+                State::InOperator(start_operator) => match self.peek_char() {
+                    None => State::Finished(start_operator.into_token()),
+                    Some(ch) => match ch {
+                        '=' => {
+                            self.next_char();
+                            token_string.push(ch);
+                            State::Finished(start_operator.into_token_with_eq())
+                        }
+                        _ => State::Finished(start_operator.into_token()),
+                    },
+                },
+                State::InNumeric(seen_period) => match self.peek_char() {
+                    None => State::Finished(Token::NUMBER(token_string.clone())),
+                    Some(ch) => match ch {
+                        '.' => {
+                            if seen_period {
+                                panic!(
+                                    "Lexer error. Already have seen period in numeric: {}",
+                                    token_string
+                                );
+                            }
+                            token_string.push(ch);
+                            self.next_char();
+                            State::InNumeric(true)
+                        }
+                        d if d.is_digit(10) => {
+                            token_string.push(d);
+                            self.next_char();
+                            State::InNumeric(seen_period)
+                        }
+                        w if w.is_ascii_whitespace() => {
+                            State::Finished(Token::NUMBER(token_string.clone()))
+                        }
+                        ch if !ch.is_alphabetic() => {
+                            State::Finished(Token::NUMBER(token_string.clone()))
+                        }
+                        other => {
+                            panic!("Lexer error. Invalid character in numeric token: {}", other)
+                        }
+                    },
+                },
+                State::InAlpha => match self.peek_char() {
+                    None => State::Finished(Token::try_keyword_or_ident(token_string.clone())),
+                    Some(ch) => match ch {
+                        '_' => {
+                            token_string.push(ch);
+                            self.next_char();
+                            State::InAlpha
+                        }
+                        ch if ch.is_alphanumeric() => {
+                            token_string.push(ch);
+                            self.next_char();
+                            State::InAlpha
+                        }
+                        ch if can_delimit_identifier(ch) => {
+                            State::Finished(Token::try_keyword_or_ident(token_string.clone()))
+                        }
+                        w if w.is_ascii_whitespace() => {
+                            State::Finished(Token::try_keyword_or_ident(token_string.clone()))
+                        }
+                        other => panic!(
+                            "Lexer error. Invalid character in keyword or identifier token: {}",
+                            other
+                        ),
+                    },
+                },
+            }
+        }
+    }
 }
 
-pub struct Lexer {
+pub struct Lexer1 {
     inner: Peekable<IntoChars>,
     peeked: Option<Token>,
 }
 
-impl Lexer {
-    pub fn new(s: &str) -> Lexer {
+impl Lexer1 {
+    pub fn new(s: &str) -> Lexer1 {
         let s = s.to_string() + "\n";
-        Lexer {
+        Lexer1 {
             inner: IntoChars::new(s).peekable(),
             peeked: None,
         }
@@ -161,13 +342,13 @@ impl Lexer {
         self.inner.next()
     }
 
-    #[allow(dead_code)]
-    pub fn tokens(self) -> TokenIter {
-        TokenIter {
-            lexer: self,
-            seen_eof: false,
-        }
-    }
+    // #[cfg(test)]
+    // pub fn tokens(self) -> TokenIter {
+    // TokenIter {
+    // lexer: self,
+    // seen_eof: false,
+    // }
+    // }
 
     pub fn peek_token(&mut self) -> &Token {
         if let None = self.peeked {
