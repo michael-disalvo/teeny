@@ -210,6 +210,7 @@ impl<R: Read> Parser<R> {
             Token::ENDIF | Token::ELSEIF | Token::ELSE,
         ) {
             body.push(self.statement());
+            self.newline_optional();
         }
 
         IfBranch { condition, body }
@@ -247,7 +248,8 @@ impl<R: Read> Parser<R> {
 
                     let mut stmts = Vec::new();
                     while !matches!(self.lexer.peek_token(), Token::ENDIF) {
-                        stmts.push(self.statement())
+                        stmts.push(self.statement());
+                        self.newline_optional();
                     }
                     Some(stmts)
                 } else {
@@ -277,6 +279,7 @@ impl<R: Read> Parser<R> {
                 let mut body = Vec::new();
                 while *self.lexer.peek_token() != Token::ENDWHILE {
                     body.push(self.statement());
+                    self.newline_optional();
                 }
 
                 // consume the ENDWHILE
@@ -858,6 +861,38 @@ PRINT X"#;
         } else {
             panic!("Expected While statement");
         }
+    }
+
+    #[test]
+    fn blank_line_before_endif() {
+        let input = "IF 1 THEN\nPRINT 1\n\nENDIF\n";
+        let mut parser = Parser::from_str(input);
+        let ast = parser.program();
+        assert!(matches!(ast[0], Stmt::If(_)));
+    }
+
+    #[test]
+    fn blank_line_before_elseif() {
+        let input = "IF 0 THEN\nPRINT 1\n\nELSEIF 1 THEN\nPRINT 2\nENDIF\n";
+        let mut parser = Parser::from_str(input);
+        let ast = parser.program();
+        assert!(matches!(ast[0], Stmt::If(_)));
+    }
+
+    #[test]
+    fn blank_line_before_else() {
+        let input = "IF 0 THEN\nPRINT 1\n\nELSE\nPRINT 2\nENDIF\n";
+        let mut parser = Parser::from_str(input);
+        let ast = parser.program();
+        assert!(matches!(ast[0], Stmt::If(_)));
+    }
+
+    #[test]
+    fn blank_line_before_endwhile() {
+        let input = "WHILE 0 REPEAT\nPRINT 1\n\nENDWHILE\n";
+        let mut parser = Parser::from_str(input);
+        let ast = parser.program();
+        assert!(matches!(ast[0], Stmt::While(_)));
     }
 
     #[test]
