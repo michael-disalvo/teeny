@@ -12,6 +12,8 @@ mod verify;
 #[derive(clap::Parser)]
 #[command(version, about)]
 struct Args {
+    #[clap(short, long)]
+    repl: bool,
     /// Compile the teeny program into C code
     #[clap(short, long)]
     compile: bool,
@@ -173,8 +175,28 @@ pub fn emit_tree(ast: &[Stmt], emitter: &mut Emitter) {
     }
 }
 
+fn do_repl() {
+    use std::io;
+
+    let stdin = io::stdin();
+
+    let lexer = Lexer::from_reader(stdin);
+    let mut parser = Parser::new(lexer);
+
+    let mut runtime = interpret::Runtime::new();
+
+    loop {
+        let stmt = parser.statement();
+        runtime.eval_stmt(&stmt);
+    }
+}
+
 fn main() {
     let args = <Args as clap::Parser>::parse();
+
+    if args.repl {
+        do_repl()
+    }
 
     let s = std::fs::read_to_string(args.input_file).expect("failed to read input file");
 

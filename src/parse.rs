@@ -70,6 +70,13 @@ impl<R: Read> Parser<R> {
         }
     }
 
+    fn single_newline(&mut self) {
+        match self.lexer.next_token() {
+            Token::NEWLINE => {}
+            other => panic!("Parse error. Expected newline but found {:?}", other),
+        }
+    }
+
     fn newline(&mut self) {
         match self.lexer.next_token() {
             Token::NEWLINE => self.newline_optional(),
@@ -208,7 +215,8 @@ impl<R: Read> Parser<R> {
         IfBranch { condition, body }
     }
 
-    fn statement(&mut self) -> Stmt {
+    pub fn statement(&mut self) -> Stmt {
+        self.newline_optional();
         let stmt = match self.lexer.next_token() {
             Token::EOF => {
                 panic!("Parser error: Expected start of statement but reached end of file")
@@ -308,7 +316,7 @@ impl<R: Read> Parser<R> {
             ),
         };
 
-        self.newline();
+        self.single_newline();
 
         stmt
     }
@@ -317,7 +325,8 @@ impl<R: Read> Parser<R> {
         self.newline_optional();
         let mut stmts = Vec::new();
         while !self.lexer.peek_token().is_eof() {
-            stmts.push(self.statement())
+            stmts.push(self.statement());
+            self.newline_optional();
         }
 
         stmts
