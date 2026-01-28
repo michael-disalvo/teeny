@@ -115,6 +115,7 @@ impl Runtime {
 mod test {
     use super::*;
 
+    use crate::parse::Parser;
     use crate::token::{BinaryOp, UnaryOp, to_bool};
 
     macro_rules! assert_feq {
