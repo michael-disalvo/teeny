@@ -44,6 +44,6 @@ TODO:
   5. ✅ Write an interpreter alongside the emitter
   6. ✅ Write a REPL for the interpreter 
   7. Improve the UI of the REPL
-  8. Write some end-to-end tests by adding a writer to emitter 
-  9. Move emitter into its own module 
+  8. ✅ Write some end-to-end tests by adding a writer to emitter 
+  9. ✅ Move emitter into its own module 
 

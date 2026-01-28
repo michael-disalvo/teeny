@@ -3,7 +3,7 @@ use lex::Lexer;
 use parse::Parser;
 pub use token::Token;
 
-use std::io;
+use std::io::{self, Write};
 
 mod emit;
 mod interpret;
@@ -38,7 +38,7 @@ fn do_repl() {
     }
 }
 
-fn do_file(input_file: String, compile: bool) {
+fn do_file(input_file: impl AsRef<std::path::Path>, compile: bool, w: &mut impl Write) {
     let s = std::fs::read_to_string(input_file).expect("failed to read input file");
     let mut parser = Parser::from_str(&s);
     let ast = parser.program();
@@ -48,7 +48,7 @@ fn do_file(input_file: String, compile: bool) {
     if compile {
         let mut emitter = Emitter::new();
         emitter.emit_tree(&ast);
-        emitter.write_out(&mut io::stdout());
+        emitter.write_out(w);
     } else {
         let mut runtime = interpret::Runtime::new();
         for stmt in ast {
@@ -61,8 +61,25 @@ fn main() {
     let args = <Args as clap::Parser>::parse();
 
     if let Some(file) = args.input_file {
-        do_file(file, args.compile);
+        do_file(file, args.compile, &mut io::stdout());
     } else {
         do_repl();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn e2e_while_loop() {
+        let input_file = "test_files/while_loop.teeny";
+
+        let expected_file = "test_files/while_loop.c";
+        let expected = std::fs::read_to_string(expected_file).unwrap();
+
+        let mut got = Vec::new();
+        do_file(input_file, true, &mut got);
+        assert_eq!(String::from_utf8(got).unwrap(), expected);
     }
 }
