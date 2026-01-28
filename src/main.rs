@@ -12,13 +12,11 @@ mod verify;
 #[derive(clap::Parser)]
 #[command(version, about)]
 struct Args {
-    #[clap(short, long)]
-    repl: bool,
-    /// Compile the teeny program into C code
+    /// If given a file, compile the teeny program into C code instead of interpret
     #[clap(short, long)]
     compile: bool,
-    /// Input file of teeny code
-    input_file: String,
+    /// Input file of teeny code to either interpret or compile
+    input_file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -191,22 +189,14 @@ fn do_repl() {
     }
 }
 
-fn main() {
-    let args = <Args as clap::Parser>::parse();
-
-    if args.repl {
-        do_repl()
-    }
-
-    let s = std::fs::read_to_string(args.input_file).expect("failed to read input file");
-
-    let lexer = Lexer::new(&s);
-    let mut parser = Parser::new(lexer);
+fn do_file(input_file: String, compile: bool) {
+    let s = std::fs::read_to_string(input_file).expect("failed to read input file");
+    let mut parser = Parser::from_str(&s);
     let ast = parser.program();
 
     verify::verify_tree(&ast);
 
-    if args.compile {
+    if compile {
         let mut emitter = Emitter::new();
         emit_tree(&ast, &mut emitter);
         emitter.write_out();
@@ -215,5 +205,15 @@ fn main() {
         for stmt in ast {
             runtime.eval_stmt(&stmt);
         }
+    }
+}
+
+fn main() {
+    let args = <Args as clap::Parser>::parse();
+
+    if let Some(file) = args.input_file {
+        do_file(file, args.compile);
+    } else {
+        do_repl();
     }
 }

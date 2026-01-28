@@ -1,4 +1,4 @@
-use crate::parse::{Expr, IfStmt, Parser, PrintValue, Stmt, WhileStmt};
+use crate::parse::{Expr, IfStmt, PrintValue, Stmt, WhileStmt};
 
 use std::collections::HashMap;
 use std::iter;
@@ -23,11 +23,11 @@ impl Runtime {
         self.variables.insert(ident.to_string(), value);
     }
 
-    pub fn eval_label(&mut self, label: &str) {
+    pub fn eval_label(&mut self, _label: &str) {
         panic!("Runtime error: labels not allowed in interpreter");
     }
 
-    pub fn eval_goto(&mut self, label: &str) {
+    pub fn eval_goto(&mut self, _label: &str) {
         panic!("Runtime error: gotos not allowed in interpreter");
     }
 
