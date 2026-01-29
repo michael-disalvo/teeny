@@ -33,6 +33,8 @@ fn do_repl() {
     let mut runtime = interpret::Runtime::new();
 
     loop {
+        print!(">>> ");
+        io::stdout().flush().unwrap();
         let stmt = parser.statement();
         runtime.eval_stmt(&stmt);
     }
