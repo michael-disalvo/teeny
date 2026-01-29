@@ -1,5 +1,4 @@
-use crate::Token;
-use crate::{Error, Result};
+use crate::{Result, Token, lexer_err};
 use std::io::{BufRead, BufReader, Read};
 use std::iter::Peekable;
 
@@ -216,10 +215,11 @@ impl<R: Read> Lexer<R> {
                                 start if matches!(start, '&' | '|') => {
                                     let next_ch = self.next_char();
                                     if next_ch.is_none_or(|ch| ch != start) {
-                                        return Err(Error::Lexer(format!(
+                                        return Err(lexer_err!(
                                             "Expected another {} but found {:?}",
-                                            start, next_ch
-                                        )));
+                                            start,
+                                            next_ch,
+                                        ));
                                     }
                                     let token = if start == '&' { Token::AND } else { Token::OR };
                                     State::Finished(token)
@@ -232,10 +232,10 @@ impl<R: Read> Lexer<R> {
                                 other if other.is_digit(10) => State::InNumeric(false),
                                 other if other.is_alphabetic() => State::InAlpha,
                                 other => {
-                                    return Err(Error::Lexer(format!(
+                                    return Err(lexer_err!(
                                         "Lexer error. Unknown start to token: {}",
                                         other
-                                    )));
+                                    ));
                                 }
                             }
                         }
@@ -243,9 +243,7 @@ impl<R: Read> Lexer<R> {
                 }
                 State::InString => match self.next_char() {
                     None => {
-                        return Err(Error::Lexer(format!(
-                            "Lexer error. File finished with open quote"
-                        )));
+                        return Err(lexer_err!("Lexer error. File finished with open quote"));
                     }
                     Some(ch) => {
                         token_string.push(ch);
@@ -274,10 +272,10 @@ impl<R: Read> Lexer<R> {
                     Some(ch) => match ch {
                         '.' => {
                             if seen_period {
-                                return Err(Error::Lexer(format!(
+                                return Err(lexer_err!(
                                     "Lexer error. Already have seen period in numeric: {}",
                                     token_string
-                                )));
+                                ));
                             }
                             token_string.push(ch);
                             self.next_char();
@@ -295,10 +293,10 @@ impl<R: Read> Lexer<R> {
                             State::Finished(Token::NUMBER(token_string.clone()))
                         }
                         other => {
-                            return Err(Error::Lexer(format!(
+                            return Err(lexer_err!(
                                 "Lexer error. Invalid character in numeric token: {}",
                                 other
-                            )));
+                            ));
                         }
                     },
                 },
@@ -322,10 +320,10 @@ impl<R: Read> Lexer<R> {
                             State::Finished(Token::try_keyword_or_ident(token_string.clone()))
                         }
                         other => {
-                            return Err(Error::Lexer(format!(
+                            return Err(lexer_err!(
                                 "Lexer error. Invalid character in keyword or identifier token: {}",
                                 other
-                            )));
+                            ));
                         }
                     },
                 },

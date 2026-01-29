@@ -30,6 +30,13 @@ pub enum Error {
     Io(#[from] io::Error),
 }
 
+#[macro_export]
+macro_rules! lexer_err {
+    ($($arg:tt)*) => {
+        crate::Error::Lexer(format!($($arg)*).into())
+    };
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 fn do_repl() {
