@@ -22,6 +22,16 @@ struct Args {
     input_file: Option<String>,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("Lexer error. {0}")]
+    Lexer(String),
+    #[error("IO error. {0}")]
+    Io(#[from] io::Error),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 fn do_repl() {
     use std::io;
 

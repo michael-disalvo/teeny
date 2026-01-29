@@ -1,4 +1,5 @@
 use crate::Token;
+use crate::{Error, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::iter::Peekable;
 
@@ -66,12 +67,13 @@ fn can_delimit_identifier(ch: char) -> bool {
     matches!(ch, '+' | '-' | '*' | '/' | '=' | '>' | '<' | ')')
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub struct TokenIter<R> {
     lexer: Lexer<R>,
     seen_eof: bool,
 }
 
+#[cfg(test)]
 impl<R: Read> std::iter::Iterator for TokenIter<R> {
     type Item = Token;
 
@@ -183,8 +185,12 @@ impl<R: Read> Lexer<R> {
     }
 
     pub fn next_token(&mut self) -> Token {
+        self.next_token_inner().unwrap()
+    }
+
+    fn next_token_inner(&mut self) -> Result<Token> {
         if let Some(v) = self.peeked.take() {
-            return v;
+            return Ok(v);
         }
 
         let mut token_string = String::new();
@@ -192,7 +198,7 @@ impl<R: Read> Lexer<R> {
 
         loop {
             state = match state {
-                State::Finished(token) => return token,
+                State::Finished(token) => return Ok(token),
                 State::Started => {
                     self.skip_whitespace();
                     match self.next_char() {
@@ -210,10 +216,10 @@ impl<R: Read> Lexer<R> {
                                 start if matches!(start, '&' | '|') => {
                                     let next_ch = self.next_char();
                                     if next_ch.is_none_or(|ch| ch != start) {
-                                        panic!(
-                                            "Lexer error. Saw {:?}, expected another {}",
-                                            next_ch, start
-                                        )
+                                        return Err(Error::Lexer(format!(
+                                            "Expected another {} but found {:?}",
+                                            start, next_ch
+                                        )));
                                     }
                                     let token = if start == '&' { Token::AND } else { Token::OR };
                                     State::Finished(token)
@@ -225,13 +231,22 @@ impl<R: Read> Lexer<R> {
                                 '"' => State::InString,
                                 other if other.is_digit(10) => State::InNumeric(false),
                                 other if other.is_alphabetic() => State::InAlpha,
-                                other => panic!("Lexer error. Unknown start to token: {}", other),
+                                other => {
+                                    return Err(Error::Lexer(format!(
+                                        "Lexer error. Unknown start to token: {}",
+                                        other
+                                    )));
+                                }
                             }
                         }
                     }
                 }
                 State::InString => match self.next_char() {
-                    None => panic!("Lexer error. File finished with open quote"),
+                    None => {
+                        return Err(Error::Lexer(format!(
+                            "Lexer error. File finished with open quote"
+                        )));
+                    }
                     Some(ch) => {
                         token_string.push(ch);
                         match ch {
@@ -259,10 +274,10 @@ impl<R: Read> Lexer<R> {
                     Some(ch) => match ch {
                         '.' => {
                             if seen_period {
-                                panic!(
+                                return Err(Error::Lexer(format!(
                                     "Lexer error. Already have seen period in numeric: {}",
                                     token_string
-                                );
+                                )));
                             }
                             token_string.push(ch);
                             self.next_char();
@@ -280,7 +295,10 @@ impl<R: Read> Lexer<R> {
                             State::Finished(Token::NUMBER(token_string.clone()))
                         }
                         other => {
-                            panic!("Lexer error. Invalid character in numeric token: {}", other)
+                            return Err(Error::Lexer(format!(
+                                "Lexer error. Invalid character in numeric token: {}",
+                                other
+                            )));
                         }
                     },
                 },
@@ -303,10 +321,12 @@ impl<R: Read> Lexer<R> {
                         w if w.is_ascii_whitespace() => {
                             State::Finished(Token::try_keyword_or_ident(token_string.clone()))
                         }
-                        other => panic!(
-                            "Lexer error. Invalid character in keyword or identifier token: {}",
-                            other
-                        ),
+                        other => {
+                            return Err(Error::Lexer(format!(
+                                "Lexer error. Invalid character in keyword or identifier token: {}",
+                                other
+                            )));
+                        }
                     },
                 },
             }
