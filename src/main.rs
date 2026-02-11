@@ -30,6 +30,8 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("Parser error. {0}")]
     Parse(String),
+    #[error("Runtime error. {0}")]
+    Runtime(String),
 }
 
 #[macro_export]
@@ -43,6 +45,13 @@ macro_rules! lexer_err {
 macro_rules! parse_err {
     ($($arg:tt)*) => {
         crate::Error::Parse(format!($($arg)*).into())
+    };
+}
+
+#[macro_export]
+macro_rules! runtime_err {
+    ($($arg:tt)*) => {
+        crate::Error::Runtime(format!($($arg)*).into())
     };
 }
 
@@ -62,7 +71,9 @@ fn do_repl() -> Result<()> {
         print!(">>> ");
         io::stdout().flush().unwrap();
         let stmt = parser.statement()?;
-        runtime.eval_stmt(&stmt);
+        if let Err(e) = runtime.eval_stmt(&stmt) {
+            println!("{e:?}");
+        }
     }
 }
 
@@ -84,7 +95,7 @@ fn do_file(
     } else {
         let mut runtime = interpret::Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt)?;
         }
     }
     Ok(())

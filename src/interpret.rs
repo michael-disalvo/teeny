@@ -1,4 +1,5 @@
 use crate::parse::{Expr, IfStmt, PrintValue, Stmt, WhileStmt};
+use crate::{Result, runtime_err};
 
 use std::collections::HashMap;
 use std::iter;
@@ -14,91 +15,104 @@ impl Runtime {
         Self::default()
     }
 
-    pub fn condition_is_true(&self, expr: &Expr) -> bool {
-        crate::token::to_bool(self.eval_expr(expr))
+    pub fn condition_is_true(&self, expr: &Expr) -> Result<bool> {
+        Ok(crate::token::to_bool(self.eval_expr(expr)?))
     }
 
-    pub fn eval_let(&mut self, ident: &str, expr: &Expr) {
-        let value = self.eval_expr(expr);
+    pub fn eval_let(&mut self, ident: &str, expr: &Expr) -> Result<()> {
+        let value = self.eval_expr(expr)?;
         self.variables.insert(ident.to_string(), value);
+        Ok(())
     }
 
-    pub fn eval_label(&mut self, _label: &str) {
-        panic!("Runtime error: labels not allowed in interpreter");
+    pub fn eval_label(&mut self, _label: &str) -> Result<()> {
+        Err(runtime_err!(
+            "Runtime error: labels not allowed in interpreter"
+        ))
     }
 
-    pub fn eval_goto(&mut self, _label: &str) {
-        panic!("Runtime error: gotos not allowed in interpreter");
+    pub fn eval_goto(&mut self, _label: &str) -> Result<()> {
+        Err(runtime_err!(
+            "Runtime error: gotos not allowed in interpreter"
+        ))
     }
 
-    pub fn eval_if(&mut self, if_stmt: &IfStmt) {
+    pub fn eval_if(&mut self, if_stmt: &IfStmt) -> Result<()> {
         let Some(body) = iter::once(&if_stmt.first_branch)
             .chain(&if_stmt.other_branches)
-            .find(|branch| self.condition_is_true(&branch.condition))
+            .find(|branch| self.condition_is_true(&branch.condition).unwrap(/*TODO*/))
             .map(|true_branch| true_branch.body.as_slice())
             .or(if_stmt.else_body.as_deref())
         else {
-            return;
+            return Ok(());
         };
 
         // evaluate stmts
         for stmt in body {
-            self.eval_stmt(stmt)
+            self.eval_stmt(stmt)?
         }
+
+        Ok(())
     }
 
-    pub fn eval_while(&mut self, while_stmt: &WhileStmt) {
-        while self.condition_is_true(&while_stmt.condition) {
+    pub fn eval_while(&mut self, while_stmt: &WhileStmt) -> Result<()> {
+        while self.condition_is_true(&while_stmt.condition)? {
             // evalutate while_stmt.body
             for stmt in &while_stmt.body {
-                self.eval_stmt(stmt)
+                self.eval_stmt(stmt)?
             }
         }
+        Ok(())
     }
 
-    pub fn eval_print(&self, print_value: &PrintValue) {
+    pub fn eval_print(&self, print_value: &PrintValue) -> Result<()> {
         match print_value {
             PrintValue::Str(s) => println!("{}", s),
             PrintValue::Expr(expr) => {
-                let f = self.eval_expr(expr);
+                let f = self.eval_expr(expr)?;
                 println!("{:.2}", f);
             }
         }
+        Ok(())
     }
 
-    pub fn eval_expr(&self, expr: &Expr) -> f32 {
+    pub fn eval_expr(&self, expr: &Expr) -> Result<f32> {
         match expr {
             Expr::Number(num_str) => {
-                f32::from_str(num_str).expect("should have validated number token")
+                Ok(f32::from_str(num_str).expect("should have validated number token"))
             }
             Expr::Identifier(ident) => {
                 let Some(val) = self.variables.get(ident) else {
-                    panic!("Runtime error: no value for identifier {}", ident);
+                    return Err(runtime_err!(
+                        "Runtime error: no value for identifier {}",
+                        ident
+                    ));
                 };
-                *val
+                Ok(*val)
             }
             Expr::Binary(op, lhs, rhs) => {
-                let lhs = self.eval_expr(lhs);
-                let rhs = self.eval_expr(rhs);
-                op.eval(lhs, rhs)
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+                Ok(op.eval(lhs, rhs))
             }
             Expr::Unary(op, expr) => {
-                let operand = self.eval_expr(expr);
-                op.eval(operand)
+                let operand = self.eval_expr(expr)?;
+                Ok(op.eval(operand))
             }
         }
     }
 
-    pub fn eval_input(&mut self, ident: &str) {
+    pub fn eval_input(&mut self, ident: &str) -> Result<()> {
         use std::io::BufRead;
         let mut line = String::new();
         std::io::stdin().lock().read_line(&mut line).unwrap();
 
         let input = f32::from_str(line.trim()).unwrap_or(0.0);
         self.variables.insert(ident.to_string(), input);
+        Ok(())
     }
 
-    pub fn eval_stmt(&mut self, stmt: &Stmt) {
+    pub fn eval_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::Print(pv) => self.eval_print(pv),
             Stmt::If(if_stmt) => self.eval_if(if_stmt),
@@ -149,7 +163,7 @@ ENDWHILE
         let mut runtime = Runtime::new();
 
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
 
         assert_feq!(runtime.variables.get("X").unwrap(), 0.0, 0.000001);
@@ -168,7 +182,7 @@ ENDWHILE
             panic!("expected Stmt::Let but found {:?}", ast[0]);
         };
 
-        runtime.eval_let(ident, expr);
+        runtime.eval_let(ident, expr).unwrap();
 
         assert_feq!(runtime.variables.get("X").unwrap(), 12.0, 0.00001);
     }
@@ -187,7 +201,7 @@ ENDWHILE
 
         // 1 + 2
         let expr = Expr::Binary(BinaryOp::Plus, number_expr(1.0), number_expr(2.0));
-        assert_feq!(runtime.eval_expr(&expr), 3.0, 0.00001);
+        assert_feq!(runtime.eval_expr(&expr).unwrap(), 3.0, 0.00001);
 
         // 2 * (3 + 4) = 14
         let expr = Expr::Binary(
@@ -195,16 +209,16 @@ ENDWHILE
             number_expr(2.0),
             Expr::Binary(BinaryOp::Plus, number_expr(3.0), number_expr(4.0)).into(),
         );
-        assert_feq!(runtime.eval_expr(&expr), 14.0, 0.00001);
+        assert_feq!(runtime.eval_expr(&expr).unwrap(), 14.0, 0.00001);
 
         let expr = Expr::Unary(UnaryOp::Not, number_expr(1.4));
-        assert_feq!(runtime.eval_expr(&expr), 0.0, 0.00001);
+        assert_feq!(runtime.eval_expr(&expr).unwrap(), 0.0, 0.00001);
 
         let mut runtime = Runtime::new();
         runtime.variables.insert("X".to_string(), 5.0);
 
         let expr = Expr::Binary(BinaryOp::Slash, ident_expr("X"), ident_expr("X"));
-        assert_feq!(runtime.eval_expr(&expr), 1.0, 0.000001);
+        assert_feq!(runtime.eval_expr(&expr).unwrap(), 1.0, 0.000001);
     }
 
     #[test]
@@ -233,7 +247,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 0.0, 0.000001);
     }
@@ -250,7 +264,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 2.0, 0.000001);
     }
@@ -267,7 +281,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 1.0, 0.000001);
     }
@@ -287,7 +301,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         // All conditions are true, but first should win
         assert_feq!(runtime.variables.get("Y").unwrap(), 1.0, 0.000001);
@@ -310,7 +324,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 2.0, 0.000001);
     }
@@ -330,7 +344,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 3.0, 0.000001);
     }
@@ -347,7 +361,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 0.0, 0.000001);
     }
@@ -365,7 +379,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 1.0, 0.000001);
     }
@@ -387,7 +401,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         // 2 outer iterations * 3 inner iterations = 6
         assert_feq!(runtime.variables.get("Y").unwrap(), 6.0, 0.000001);
@@ -412,7 +426,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         // X goes 4, 3, 2, 1 - but with float division this won't work as expected
         // 4: 4 - (4/2)*2 = 4 - 4 = 0 (even)
@@ -437,7 +451,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         // Y = 1 + 2 + 3 + 4 = 10
         assert_feq!(runtime.variables.get("Y").unwrap(), 10.0, 0.000001);
@@ -456,7 +470,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         // First branch runs (X was 1), sets X to 2
         // ELSEIF should NOT run even though X is now 2
@@ -477,7 +491,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 5.0, 0.000001);
     }
@@ -495,7 +509,7 @@ ENDWHILE
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 5.0, 0.000001);
     }
@@ -516,7 +530,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 1.0, 0.000001);
     }
@@ -536,7 +550,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Z").unwrap(), 1.0, 0.000001);
     }
@@ -556,7 +570,7 @@ ENDIF
         let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
-            runtime.eval_stmt(&stmt);
+            runtime.eval_stmt(&stmt).unwrap();
         }
         assert_feq!(runtime.variables.get("Y").unwrap(), 1.0, 0.000001);
     }
