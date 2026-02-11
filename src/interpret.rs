@@ -144,7 +144,7 @@ WHILE X > 0 REPEAT
 ENDWHILE
 "#;
 
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
 
         let mut runtime = Runtime::new();
 
@@ -162,7 +162,7 @@ ENDWHILE
 
         let input = "LET X = 3 * (5 - 1)";
 
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
 
         let Stmt::Let(ident, expr) = &ast[0] else {
             panic!("expected Stmt::Let but found {:?}", ast[0]);
@@ -230,7 +230,7 @@ IF 0 THEN
     LET Y = 1
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -247,7 +247,7 @@ ELSE
     LET Y = 2
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -264,7 +264,7 @@ ELSE
     LET Y = 2
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -284,7 +284,7 @@ ELSEIF X > 1 THEN
     LET Y = 3
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -307,7 +307,7 @@ ELSE
     LET Y = 4
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -327,7 +327,7 @@ ELSE
     LET Y = 3
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -344,7 +344,7 @@ WHILE X > 0 REPEAT
     LET Y = Y + 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -362,7 +362,7 @@ WHILE X > 0 REPEAT
     LET X = X - 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -384,7 +384,7 @@ WHILE X > 0 REPEAT
     LET X = X - 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -409,7 +409,7 @@ WHILE X > 0 REPEAT
     LET X = X - 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -434,7 +434,7 @@ IF X THEN
     ENDWHILE
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -453,7 +453,7 @@ ELSEIF X == 2 THEN
     LET Y = 999
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -474,7 +474,7 @@ WHILE X > 0 && X < 10 REPEAT
     LET X = X - 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -492,7 +492,7 @@ WHILE X < 0 REPEAT
     LET X = X + 1
 ENDWHILE
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -513,7 +513,7 @@ IF X > 0 THEN
     ENDIF
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -533,7 +533,7 @@ ELSE
     LET Z = 0
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);
@@ -553,7 +553,7 @@ ELSE
     LET Y = 0
 ENDIF
 "#;
-        let ast = Parser::from_str(input).program();
+        let ast = Parser::from_str(input).program().unwrap();
         let mut runtime = Runtime::new();
         for stmt in ast {
             runtime.eval_stmt(&stmt);

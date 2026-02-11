@@ -28,6 +28,8 @@ pub enum Error {
     Lexer(String),
     #[error("IO error. {0}")]
     Io(#[from] io::Error),
+    #[error("Parser error. {0}")]
+    Parse(String),
 }
 
 #[macro_export]
@@ -37,9 +39,16 @@ macro_rules! lexer_err {
     };
 }
 
+#[macro_export]
+macro_rules! parse_err {
+    ($($arg:tt)*) => {
+        crate::Error::Parse(format!($($arg)*).into())
+    };
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
-fn do_repl() {
+fn do_repl() -> Result<()> {
     use std::io;
 
     let stdin = io::stdin();
@@ -52,15 +61,19 @@ fn do_repl() {
     loop {
         print!(">>> ");
         io::stdout().flush().unwrap();
-        let stmt = parser.statement();
+        let stmt = parser.statement()?;
         runtime.eval_stmt(&stmt);
     }
 }
 
-fn do_file(input_file: impl AsRef<std::path::Path>, compile: bool, w: &mut impl Write) {
+fn do_file(
+    input_file: impl AsRef<std::path::Path>,
+    compile: bool,
+    w: &mut impl Write,
+) -> Result<()> {
     let s = std::fs::read_to_string(input_file).expect("failed to read input file");
     let mut parser = Parser::from_str(&s);
-    let ast = parser.program();
+    let ast = parser.program()?;
 
     verify::verify_tree(&ast);
 
@@ -74,15 +87,20 @@ fn do_file(input_file: impl AsRef<std::path::Path>, compile: bool, w: &mut impl 
             runtime.eval_stmt(&stmt);
         }
     }
+    Ok(())
 }
 
 fn main() {
     let args = <Args as clap::Parser>::parse();
 
-    if let Some(file) = args.input_file {
-        do_file(file, args.compile, &mut io::stdout());
+    let res = if let Some(file) = args.input_file {
+        do_file(file, args.compile, &mut io::stdout())
     } else {
-        do_repl();
+        do_repl()
+    };
+
+    if let Err(e) = res {
+        eprintln!("{e:?}");
     }
 }
 
@@ -98,7 +116,7 @@ mod test {
         let expected = std::fs::read_to_string(expected_file).unwrap();
 
         let mut got = Vec::new();
-        do_file(input_file, true, &mut got);
+        do_file(input_file, true, &mut got).unwrap();
         assert_eq!(String::from_utf8(got).unwrap(), expected);
     }
 }

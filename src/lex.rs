@@ -80,7 +80,7 @@ impl<R: Read> std::iter::Iterator for TokenIter<R> {
         if self.seen_eof {
             None
         } else {
-            let t = self.lexer.next_token();
+            let t = self.lexer.next_token().unwrap();
             self.seen_eof = t.is_eof();
             Some(t)
         }
@@ -173,21 +173,17 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    pub fn peek_token(&mut self) -> &Token {
+    pub fn peek_token(&mut self) -> Result<&Token> {
         if let None = self.peeked {
-            self.peeked = Some(self.next_token())
+            self.peeked = Some(self.next_token()?)
         }
 
         // SAFETY: a `None` variant for `self` would have been replaced by a `Some`
         // variant in the code above.
-        unsafe { self.peeked.as_mut().unwrap_unchecked() }
+        unsafe { Ok(self.peeked.as_mut().unwrap_unchecked()) }
     }
 
-    pub fn next_token(&mut self) -> Token {
-        self.next_token_inner().unwrap()
-    }
-
-    fn next_token_inner(&mut self) -> Result<Token> {
+    pub fn next_token(&mut self) -> Result<Token> {
         if let Some(v) = self.peeked.take() {
             return Ok(v);
         }

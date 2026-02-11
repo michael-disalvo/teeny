@@ -1,5 +1,6 @@
-use crate::Token;
+use crate::Result;
 use crate::lex::Lexer;
+use crate::{Token, parse_err};
 
 use crate::token::{BinaryOp, UnaryOp};
 use std::io::Read;
@@ -64,192 +65,206 @@ impl<R: Read> Parser<R> {
     pub fn new(lexer: Lexer<R>) -> Self {
         Self { lexer }
     }
-    fn newline_optional(&mut self) {
-        while *self.lexer.peek_token() == Token::NEWLINE {
-            let _ = self.lexer.next_token();
+    fn newline_optional(&mut self) -> Result<()> {
+        while *self.lexer.peek_token()? == Token::NEWLINE {
+            let _ = self.lexer.next_token()?;
+        }
+        Ok(())
+    }
+
+    fn single_newline(&mut self) -> Result<()> {
+        match self.lexer.next_token()? {
+            Token::NEWLINE => Ok(()),
+            other => Err(parse_err!(
+                "Parse error. Expected newline but found {:?}",
+                other
+            )),
         }
     }
 
-    fn single_newline(&mut self) {
-        match self.lexer.next_token() {
-            Token::NEWLINE => {}
-            other => panic!("Parse error. Expected newline but found {:?}", other),
-        }
-    }
-
-    fn newline(&mut self) {
-        match self.lexer.next_token() {
+    fn newline(&mut self) -> Result<()> {
+        match self.lexer.next_token()? {
             Token::NEWLINE => self.newline_optional(),
-            other => panic!("Parse error. Expected newline but found {:?}", other),
+            other => Err(parse_err!(
+                "Parse error. Expected newline but found {:?}",
+                other
+            )),
         }
     }
 
-    fn primary(&mut self) -> Expr {
-        match self.lexer.next_token() {
-            Token::NUMBER(n) => Expr::Number(n),
-            Token::IDENT(s) => Expr::Identifier(s),
+    fn primary(&mut self) -> Result<Expr> {
+        match self.lexer.next_token()? {
+            Token::NUMBER(n) => Ok(Expr::Number(n)),
+            Token::IDENT(s) => Ok(Expr::Identifier(s)),
             Token::OPENPAREN => {
-                let expr = self.expression();
-                if !matches!(self.lexer.next_token(), Token::CLOSEPAREN) {
-                    panic!("Parse error. Missing close paren after expression")
+                let expr = self.expression()?;
+                if !matches!(self.lexer.next_token()?, Token::CLOSEPAREN) {
+                    return Err(parse_err!(
+                        "Parse error. Missing close paren after expression"
+                    ));
                 }
-                expr
+                Ok(expr)
             }
-            other => panic!(
+            other => Err(parse_err!(
                 "Parse error. Expected number or identifier but found {:?}",
                 other
-            ),
+            )),
         }
     }
 
-    fn unary_expr(&mut self) -> Expr {
-        if matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
-            let unary_op = match self.lexer.next_token() {
+    fn unary_expr(&mut self) -> Result<Expr> {
+        if matches!(self.lexer.peek_token()?, Token::PLUS | Token::MINUS) {
+            let unary_op = match self.lexer.next_token()? {
                 Token::PLUS => UnaryOp::Plus,
                 Token::MINUS => UnaryOp::Minus,
                 _ => unreachable!(),
             };
 
-            let expr = Box::new(self.primary());
-            Expr::Unary(unary_op, expr)
+            let expr = Box::new(self.primary()?);
+            Ok(Expr::Unary(unary_op, expr))
         } else {
             self.primary()
         }
     }
 
-    fn term_expr(&mut self) -> Expr {
-        let mut lhs = self.unary_expr();
+    fn term_expr(&mut self) -> Result<Expr> {
+        let mut lhs = self.unary_expr()?;
 
-        while matches!(self.lexer.peek_token(), Token::SLASH | Token::ASTERISK) {
-            let binary_op = match self.lexer.next_token() {
+        while matches!(self.lexer.peek_token()?, Token::SLASH | Token::ASTERISK) {
+            let binary_op = match self.lexer.next_token()? {
                 Token::SLASH => BinaryOp::Slash,
                 Token::ASTERISK => BinaryOp::Asterisk,
                 _ => unreachable!(),
             };
 
-            let rhs = self.unary_expr();
+            let rhs = self.unary_expr()?;
             lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
         }
 
-        lhs
+        Ok(lhs)
     }
 
-    fn math_expr(&mut self) -> Expr {
-        let mut lhs = self.term_expr();
-        while matches!(self.lexer.peek_token(), Token::PLUS | Token::MINUS) {
-            let binary_op = match self.lexer.next_token() {
+    fn math_expr(&mut self) -> Result<Expr> {
+        let mut lhs = self.term_expr()?;
+        while matches!(self.lexer.peek_token()?, Token::PLUS | Token::MINUS) {
+            let binary_op = match self.lexer.next_token()? {
                 Token::PLUS => BinaryOp::Plus,
                 Token::MINUS => BinaryOp::Minus,
                 _ => unreachable!(),
             };
 
-            let rhs = self.term_expr();
+            let rhs = self.term_expr()?;
             lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
         }
-        lhs
+        Ok(lhs)
     }
 
-    fn comparison_expr(&mut self) -> Expr {
-        let mut lhs = self.math_expr();
+    fn comparison_expr(&mut self) -> Result<Expr> {
+        let mut lhs = self.math_expr()?;
 
-        while self.lexer.peek_token().is_comparator() {
+        while self.lexer.peek_token()?.is_comparator() {
             let binary_op = self
                 .lexer
-                .next_token()
+                .next_token()?
                 .binary_op()
                 .expect("checked for comparator");
-            let rhs = self.math_expr();
+            let rhs = self.math_expr()?;
             lhs = Expr::Binary(binary_op, Box::new(lhs), Box::new(rhs));
         }
-        lhs
+        Ok(lhs)
     }
 
-    fn not_expr(&mut self) -> Expr {
-        if matches!(self.lexer.peek_token(), Token::NOT) {
+    fn not_expr(&mut self) -> Result<Expr> {
+        if matches!(self.lexer.peek_token()?, Token::NOT) {
             let unary_op = UnaryOp::Not;
-            let _ = self.lexer.next_token();
-            Expr::Unary(unary_op, Box::new(self.comparison_expr()))
+            let _ = self.lexer.next_token()?;
+            Ok(Expr::Unary(unary_op, Box::new(self.comparison_expr()?)))
         } else {
             self.comparison_expr()
         }
     }
 
-    fn and_expr(&mut self) -> Expr {
-        let mut lhs = self.not_expr();
-        while matches!(self.lexer.peek_token(), Token::AND) {
-            let _ = self.lexer.next_token();
-            let rhs = self.not_expr();
+    fn and_expr(&mut self) -> Result<Expr> {
+        let mut lhs = self.not_expr()?;
+        while matches!(self.lexer.peek_token()?, Token::AND) {
+            let _ = self.lexer.next_token()?;
+            let rhs = self.not_expr()?;
             lhs = Expr::Binary(BinaryOp::And, Box::new(lhs), Box::new(rhs));
         }
-        lhs
+        Ok(lhs)
     }
 
-    fn expression(&mut self) -> Expr {
-        let mut lhs = self.and_expr();
-        while matches!(self.lexer.peek_token(), Token::OR) {
-            let _ = self.lexer.next_token();
-            let rhs = self.and_expr();
+    fn expression(&mut self) -> Result<Expr> {
+        let mut lhs = self.and_expr()?;
+        while matches!(self.lexer.peek_token()?, Token::OR) {
+            let _ = self.lexer.next_token()?;
+            let rhs = self.and_expr()?;
             lhs = Expr::Binary(BinaryOp::Or, Box::new(lhs), Box::new(rhs));
         }
-        lhs
+        Ok(lhs)
     }
 
-    fn if_branch(&mut self) -> IfBranch {
-        let condition = self.expression();
+    fn if_branch(&mut self) -> Result<IfBranch> {
+        let condition = self.expression()?;
 
-        let next_token = self.lexer.next_token();
+        let next_token = self.lexer.next_token()?;
         if !matches!(next_token, Token::THEN) {
-            panic!("Parser error. Expected THEN but found {:?}", next_token);
+            return Err(parse_err!(
+                "Parser error. Expected THEN but found {:?}",
+                next_token
+            ));
         }
 
-        self.newline();
+        self.newline()?;
 
         let mut body = Vec::new();
         while !matches!(
-            self.lexer.peek_token(),
+            self.lexer.peek_token()?,
             Token::ENDIF | Token::ELSEIF | Token::ELSE,
         ) {
-            body.push(self.statement());
-            self.newline_optional();
+            body.push(self.statement()?);
+            self.newline_optional()?;
         }
 
-        IfBranch { condition, body }
+        Ok(IfBranch { condition, body })
     }
 
-    pub fn statement(&mut self) -> Stmt {
-        self.newline_optional();
-        let stmt = match self.lexer.next_token() {
+    pub fn statement(&mut self) -> Result<Stmt> {
+        self.newline_optional()?;
+        let stmt = match self.lexer.next_token()? {
             Token::EOF => {
-                panic!("Parser error: Expected start of statement but reached end of file")
+                return Err(parse_err!(
+                    "Parser error: Expected start of statement but reached end of file"
+                ));
             }
             Token::PRINT => {
-                let print_value = match self.lexer.peek_token().clone() {
+                let print_value = match self.lexer.peek_token()?.clone() {
                     Token::STRING(s) => {
-                        let _ = self.lexer.next_token();
+                        let _ = self.lexer.next_token()?;
                         PrintValue::Str(s)
                     }
-                    _ => PrintValue::Expr(self.expression()),
+                    _ => PrintValue::Expr(self.expression()?),
                 };
 
-                Stmt::Print(print_value)
+                Ok(Stmt::Print(print_value))
             }
             Token::IF => {
-                let first_branch = self.if_branch();
+                let first_branch = self.if_branch()?;
 
                 let mut other_branches = Vec::new();
-                while matches!(self.lexer.peek_token(), Token::ELSEIF) {
-                    self.lexer.next_token();
-                    other_branches.push(self.if_branch());
+                while matches!(self.lexer.peek_token()?, Token::ELSEIF) {
+                    self.lexer.next_token()?;
+                    other_branches.push(self.if_branch()?);
                 }
 
-                let else_body = if matches!(self.lexer.peek_token(), Token::ELSE) {
-                    self.lexer.next_token();
-                    self.newline();
+                let else_body = if matches!(self.lexer.peek_token()?, Token::ELSE) {
+                    self.lexer.next_token()?;
+                    self.newline()?;
 
                     let mut stmts = Vec::new();
-                    while !matches!(self.lexer.peek_token(), Token::ENDIF) {
-                        stmts.push(self.statement());
-                        self.newline_optional();
+                    while !matches!(self.lexer.peek_token()?, Token::ENDIF) {
+                        stmts.push(self.statement()?);
+                        self.newline_optional()?;
                     }
                     Some(stmts)
                 } else {
@@ -257,82 +272,106 @@ impl<R: Read> Parser<R> {
                 };
 
                 // consume the last seen ENDIF
-                if !matches!(self.lexer.next_token(), Token::ENDIF) {
-                    panic!("Parse error: Expected next token to be ENDIF")
+                if !matches!(self.lexer.next_token()?, Token::ENDIF) {
+                    return Err(parse_err!("Parse error: Expected next token to be ENDIF"));
                 }
 
-                Stmt::If(IfStmt {
+                Ok(Stmt::If(IfStmt {
                     first_branch,
                     other_branches,
                     else_body,
-                })
+                }))
             }
             Token::WHILE => {
-                let condition = self.expression();
+                let condition = self.expression()?;
 
-                match self.lexer.next_token() {
+                match self.lexer.next_token()? {
                     Token::REPEAT => {}
-                    other => panic!("Parser error. Expected REPEAT but found {:?}", other),
+                    other => {
+                        return Err(parse_err!(
+                            "Parser error. Expected REPEAT but found {:?}",
+                            other
+                        ));
+                    }
                 }
-                self.newline();
+                self.newline()?;
 
                 let mut body = Vec::new();
-                while *self.lexer.peek_token() != Token::ENDWHILE {
-                    body.push(self.statement());
-                    self.newline_optional();
+                while *self.lexer.peek_token()? != Token::ENDWHILE {
+                    body.push(self.statement()?);
+                    self.newline_optional()?;
                 }
 
                 // consume the ENDWHILE
-                self.lexer.next_token();
+                self.lexer.next_token()?;
 
-                Stmt::While(WhileStmt { condition, body })
+                Ok(Stmt::While(WhileStmt { condition, body }))
             }
-            Token::LABEL => match self.lexer.next_token() {
-                Token::IDENT(label) => Stmt::Label(label),
-                other => panic!("Parser error. Expected identifier but found {:?}", other),
+            Token::LABEL => match self.lexer.next_token()? {
+                Token::IDENT(label) => Ok(Stmt::Label(label)),
+                other => Err(parse_err!(
+                    "Parser error. Expected identifier but found {:?}",
+                    other
+                )),
             },
-            Token::GOTO => match self.lexer.next_token() {
-                Token::IDENT(label) => Stmt::Goto(label),
-                other => panic!("Parser error. Expected identifier but found {:?}", other),
+            Token::GOTO => match self.lexer.next_token()? {
+                Token::IDENT(label) => Ok(Stmt::Goto(label)),
+                other => Err(parse_err!(
+                    "Parser error. Expected identifier but found {:?}",
+                    other
+                )),
             },
-            Token::INPUT => match self.lexer.next_token() {
-                Token::IDENT(symbol) => Stmt::Input(symbol),
-                other => panic!("Parser error. Expected identifier but found {:?}", other),
+            Token::INPUT => match self.lexer.next_token()? {
+                Token::IDENT(symbol) => Ok(Stmt::Input(symbol)),
+                other => Err(parse_err!(
+                    "Parser error. Expected identifier but found {:?}",
+                    other
+                )),
             },
             Token::LET => {
-                let symbol = match self.lexer.next_token() {
+                let symbol = match self.lexer.next_token()? {
                     Token::IDENT(symbol) => symbol,
-                    other => panic!("Parser error. Expected identifier but found {:?}", other),
+                    other => {
+                        return Err(parse_err!(
+                            "Parser error. Expected identifier but found {:?}",
+                            other
+                        ));
+                    }
                 };
 
-                match self.lexer.next_token() {
+                match self.lexer.next_token()? {
                     Token::EQ => {}
-                    other => panic!("Parser error. Expected `=` but found {:?}", other),
+                    other => {
+                        return Err(parse_err!(
+                            "Parser error. Expected `=` but found {:?}",
+                            other
+                        ));
+                    }
                 }
 
-                let expr = self.expression();
-                Stmt::Let(symbol, expr)
+                let expr = self.expression()?;
+                Ok(Stmt::Let(symbol, expr))
             }
-            other => panic!(
+            other => Err(parse_err!(
                 "Parser error. Expected start of statement but found {:?}",
                 other
-            ),
+            )),
         };
 
-        self.single_newline();
+        self.single_newline()?;
 
         stmt
     }
 
-    pub fn program(&mut self) -> Vec<Stmt> {
-        self.newline_optional();
+    pub fn program(&mut self) -> Result<Vec<Stmt>> {
+        self.newline_optional()?;
         let mut stmts = Vec::new();
-        while !self.lexer.peek_token().is_eof() {
-            stmts.push(self.statement());
-            self.newline_optional();
+        while !self.lexer.peek_token()?.is_eof() {
+            stmts.push(self.statement()?);
+            self.newline_optional()?;
         }
 
-        stmts
+        Ok(stmts)
     }
 }
 
@@ -346,7 +385,7 @@ mod test {
 PRINT X"#;
 
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -363,7 +402,7 @@ PRINT X"#;
     fn print_string() {
         let input = "PRINT \"hello world\"\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -375,7 +414,7 @@ PRINT X"#;
     fn input_statement() {
         let input = "INPUT X\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(ast[0], Stmt::Input("X".to_string()));
     }
@@ -384,7 +423,7 @@ PRINT X"#;
     fn label_and_goto() {
         let input = "LABEL start\nGOTO start\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(ast[0], Stmt::Label("start".to_string()));
         assert_eq!(ast[1], Stmt::Goto("start".to_string()));
@@ -394,7 +433,7 @@ PRINT X"#;
     fn binary_arithmetic() {
         let input = "LET X = 1 + 2\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -414,7 +453,7 @@ PRINT X"#;
         // 1 + 2 * 3 should parse as 1 + (2 * 3)
         let input = "LET X = 1 + 2 * 3\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::Let(
             "X".to_string(),
@@ -437,7 +476,7 @@ PRINT X"#;
         // 10 - 6 / 2 should parse as 10 - (6 / 2)
         let input = "LET X = 10 - 6 / 2\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::Let(
             "X".to_string(),
@@ -460,7 +499,7 @@ PRINT X"#;
         // 1 - 2 - 3 should parse as (1 - 2) - 3
         let input = "LET X = 1 - 2 - 3\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::Let(
             "X".to_string(),
@@ -483,7 +522,7 @@ PRINT X"#;
         // (1 + 2) * 3 should parse as (1 + 2) * 3
         let input = "LET X = (1 + 2) * 3\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::Let(
             "X".to_string(),
@@ -505,7 +544,7 @@ PRINT X"#;
     fn unary_minus() {
         let input = "LET X = -5\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -520,7 +559,7 @@ PRINT X"#;
     fn unary_plus() {
         let input = "LET X = +5\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -544,7 +583,7 @@ PRINT X"#;
 
         for (input, expected_op) in cases {
             let mut parser = Parser::from_str(input);
-            let ast = parser.program();
+            let ast = parser.program().unwrap();
 
             assert_eq!(
                 ast[0],
@@ -566,7 +605,7 @@ PRINT X"#;
     fn not_operator() {
         let input = "LET X = ! 1 == 2\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         // NOT applies to the whole comparison: !(1 == 2)
         let expected = Stmt::Let(
@@ -588,7 +627,7 @@ PRINT X"#;
     fn and_operator() {
         let input = "LET X = 1 && 2\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -607,7 +646,7 @@ PRINT X"#;
     fn or_operator() {
         let input = "LET X = 1 || 2\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -627,7 +666,7 @@ PRINT X"#;
         // 1 || 2 && 3 should parse as 1 || (2 && 3)
         let input = "LET X = 1 || 2 && 3\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::Let(
             "X".to_string(),
@@ -649,7 +688,7 @@ PRINT X"#;
     fn simple_if() {
         let input = "IF 1 THEN\nPRINT 2\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::If(IfStmt {
             first_branch: IfBranch {
@@ -667,7 +706,7 @@ PRINT X"#;
     fn if_else() {
         let input = "IF 1 THEN\nPRINT 2\nELSE\nPRINT 3\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::If(IfStmt {
             first_branch: IfBranch {
@@ -687,7 +726,7 @@ PRINT X"#;
     fn if_elseif() {
         let input = "IF 1 THEN\nPRINT 2\nELSEIF 3 THEN\nPRINT 4\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::If(IfStmt {
             first_branch: IfBranch {
@@ -708,7 +747,7 @@ PRINT X"#;
     fn if_elseif_else() {
         let input = "IF 1 THEN\nPRINT 2\nELSEIF 3 THEN\nPRINT 4\nELSE\nPRINT 5\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::If(IfStmt {
             first_branch: IfBranch {
@@ -731,7 +770,7 @@ PRINT X"#;
     fn multiple_elseif() {
         let input = "IF 1 THEN\nPRINT 1\nELSEIF 2 THEN\nPRINT 2\nELSEIF 3 THEN\nPRINT 3\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         if let Stmt::If(if_stmt) = &ast[0] {
             assert_eq!(if_stmt.other_branches.len(), 2);
@@ -744,7 +783,7 @@ PRINT X"#;
     fn while_loop() {
         let input = "WHILE 1 REPEAT\nPRINT 2\nENDWHILE\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         let expected = Stmt::While(WhileStmt {
             condition: Expr::Number("1".to_string()),
@@ -758,7 +797,7 @@ PRINT X"#;
     fn nested_if_in_while() {
         let input = "WHILE 1 REPEAT\nIF 2 THEN\nPRINT 3\nENDIF\nENDWHILE\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         if let Stmt::While(while_stmt) = &ast[0] {
             assert_eq!(while_stmt.body.len(), 1);
@@ -772,7 +811,7 @@ PRINT X"#;
     fn nested_while_in_if() {
         let input = "IF 1 THEN\nWHILE 2 REPEAT\nPRINT 3\nENDWHILE\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         if let Stmt::If(if_stmt) = &ast[0] {
             assert_eq!(if_stmt.first_branch.body.len(), 1);
@@ -786,7 +825,7 @@ PRINT X"#;
     fn multiple_newlines_between_statements() {
         let input = "\n\n\nLET X = 1\n\n\nPRINT X\n\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(ast.len(), 2);
     }
@@ -796,7 +835,7 @@ PRINT X"#;
         // (A + B) * C - D / E
         let input = "LET X = (A + B) * C - D / E\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         // Should parse as ((A + B) * C) - (D / E)
         if let Stmt::Let(_, expr) = &ast[0] {
@@ -814,7 +853,7 @@ PRINT X"#;
     fn empty_program() {
         let input = "";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(ast.len(), 0);
     }
@@ -823,7 +862,7 @@ PRINT X"#;
     fn only_newlines() {
         let input = "\n\n\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(ast.len(), 0);
     }
@@ -832,7 +871,7 @@ PRINT X"#;
     fn expression_with_identifier() {
         let input = "LET Y = X + 1\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         assert_eq!(
             ast[0],
@@ -851,7 +890,7 @@ PRINT X"#;
     fn while_with_comparison() {
         let input = "WHILE X < 10 REPEAT\nLET X = X + 1\nENDWHILE\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         if let Stmt::While(while_stmt) = &ast[0] {
             assert!(matches!(
@@ -867,7 +906,7 @@ PRINT X"#;
     fn blank_line_before_endif() {
         let input = "IF 1 THEN\nPRINT 1\n\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
         assert!(matches!(ast[0], Stmt::If(_)));
     }
 
@@ -875,7 +914,7 @@ PRINT X"#;
     fn blank_line_before_elseif() {
         let input = "IF 0 THEN\nPRINT 1\n\nELSEIF 1 THEN\nPRINT 2\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
         assert!(matches!(ast[0], Stmt::If(_)));
     }
 
@@ -883,7 +922,7 @@ PRINT X"#;
     fn blank_line_before_else() {
         let input = "IF 0 THEN\nPRINT 1\n\nELSE\nPRINT 2\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
         assert!(matches!(ast[0], Stmt::If(_)));
     }
 
@@ -891,7 +930,7 @@ PRINT X"#;
     fn blank_line_before_endwhile() {
         let input = "WHILE 0 REPEAT\nPRINT 1\n\nENDWHILE\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
         assert!(matches!(ast[0], Stmt::While(_)));
     }
 
@@ -899,7 +938,7 @@ PRINT X"#;
     fn if_with_boolean_expression() {
         let input = "IF X > 0 && X < 10 THEN\nPRINT X\nENDIF\n";
         let mut parser = Parser::from_str(input);
-        let ast = parser.program();
+        let ast = parser.program().unwrap();
 
         if let Stmt::If(if_stmt) = &ast[0] {
             // Top level should be AND
