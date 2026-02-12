@@ -1,6 +1,5 @@
-use crate::Result;
 use crate::lex::Lexer;
-use crate::{Token, parse_err};
+use crate::{Result, Token, parse_err};
 
 use crate::token::{BinaryOp, UnaryOp};
 use std::io::Read;
@@ -75,20 +74,14 @@ impl<R: Read> Parser<R> {
     fn single_newline(&mut self) -> Result<()> {
         match self.lexer.next_token()? {
             Token::NEWLINE => Ok(()),
-            other => Err(parse_err!(
-                "Parse error. Expected newline but found {:?}",
-                other
-            )),
+            other => Err(parse_err!("Expected newline but found {:?}", other)),
         }
     }
 
     fn newline(&mut self) -> Result<()> {
         match self.lexer.next_token()? {
             Token::NEWLINE => self.newline_optional(),
-            other => Err(parse_err!(
-                "Parse error. Expected newline but found {:?}",
-                other
-            )),
+            other => Err(parse_err!("Expected newline but found {:?}", other)),
         }
     }
 
@@ -99,14 +92,12 @@ impl<R: Read> Parser<R> {
             Token::OPENPAREN => {
                 let expr = self.expression()?;
                 if !matches!(self.lexer.next_token()?, Token::CLOSEPAREN) {
-                    return Err(parse_err!(
-                        "Parse error. Missing close paren after expression"
-                    ));
+                    return Err(parse_err!("Missing close paren after expression"));
                 }
                 Ok(expr)
             }
             other => Err(parse_err!(
-                "Parse error. Expected number or identifier but found {:?}",
+                "Expected number or identifier but found {:?}",
                 other
             )),
         }

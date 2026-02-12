@@ -26,15 +26,11 @@ impl Runtime {
     }
 
     pub fn eval_label(&mut self, _label: &str) -> Result<()> {
-        Err(runtime_err!(
-            "Runtime error: labels not allowed in interpreter"
-        ))
+        Err(runtime_err!("labels not allowed in interpreter"))
     }
 
     pub fn eval_goto(&mut self, _label: &str) -> Result<()> {
-        Err(runtime_err!(
-            "Runtime error: gotos not allowed in interpreter"
-        ))
+        Err(runtime_err!("gotos not allowed in interpreter"))
     }
 
     pub fn eval_if(&mut self, if_stmt: &IfStmt) -> Result<()> {
@@ -83,10 +79,7 @@ impl Runtime {
             }
             Expr::Identifier(ident) => {
                 let Some(val) = self.variables.get(ident) else {
-                    return Err(runtime_err!(
-                        "Runtime error: no value for identifier {}",
-                        ident
-                    ));
+                    return Err(runtime_err!("no value for identifier {}", ident));
                 };
                 Ok(*val)
             }

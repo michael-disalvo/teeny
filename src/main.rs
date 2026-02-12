@@ -24,13 +24,13 @@ struct Args {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Lexer error. {0}")]
+    #[error("LexerError: {0}")]
     Lexer(String),
-    #[error("IO error. {0}")]
+    #[error("IOError: {0}")]
     Io(#[from] io::Error),
-    #[error("Parser error. {0}")]
+    #[error("ParserError: {0}")]
     Parse(String),
-    #[error("Runtime error. {0}")]
+    #[error("RuntimeError: {0}")]
     Runtime(String),
 }
 
@@ -72,7 +72,7 @@ fn do_repl() -> Result<()> {
         io::stdout().flush().unwrap();
         let stmt = parser.statement()?;
         if let Err(e) = runtime.eval_stmt(&stmt) {
-            println!("{e:?}");
+            println!("{e}");
         }
     }
 }
@@ -111,7 +111,7 @@ fn main() {
     };
 
     if let Err(e) = res {
-        eprintln!("{e:?}");
+        eprintln!("{e}");
     }
 }
 

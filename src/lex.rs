@@ -228,10 +228,7 @@ impl<R: Read> Lexer<R> {
                                 other if other.is_digit(10) => State::InNumeric(false),
                                 other if other.is_alphabetic() => State::InAlpha,
                                 other => {
-                                    return Err(lexer_err!(
-                                        "Lexer error. Unknown start to token: {}",
-                                        other
-                                    ));
+                                    return Err(lexer_err!("Unknown start to token: {}", other));
                                 }
                             }
                         }
@@ -239,7 +236,7 @@ impl<R: Read> Lexer<R> {
                 }
                 State::InString => match self.next_char() {
                     None => {
-                        return Err(lexer_err!("Lexer error. File finished with open quote"));
+                        return Err(lexer_err!("File finished with open quote"));
                     }
                     Some(ch) => {
                         token_string.push(ch);
@@ -269,7 +266,7 @@ impl<R: Read> Lexer<R> {
                         '.' => {
                             if seen_period {
                                 return Err(lexer_err!(
-                                    "Lexer error. Already have seen period in numeric: {}",
+                                    "Already have seen period in numeric: {}",
                                     token_string
                                 ));
                             }
@@ -290,7 +287,7 @@ impl<R: Read> Lexer<R> {
                         }
                         other => {
                             return Err(lexer_err!(
-                                "Lexer error. Invalid character in numeric token: {}",
+                                "Invalid character in numeric token: {}",
                                 other
                             ));
                         }
@@ -317,7 +314,7 @@ impl<R: Read> Lexer<R> {
                         }
                         other => {
                             return Err(lexer_err!(
-                                "Lexer error. Invalid character in keyword or identifier token: {}",
+                                "Invalid character in keyword or identifier token: {}",
                                 other
                             ));
                         }
