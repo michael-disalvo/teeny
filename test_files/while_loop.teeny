@@ -1,0 +1,10 @@
+
+PRINT "Enter a number:"
+INPUT X
+
+WHILE X > 0 REPEAT 
+    PRINT X
+    LET X = X - 1
+ENDWHILE
+
+PRINT "Done"

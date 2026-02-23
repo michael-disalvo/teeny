@@ -1,4 +1,5 @@
 /target
 Cargo.lock
-*.c
-*.teeny
+main.teeny
+main.c
+main
