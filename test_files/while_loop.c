@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 int main(void) {
-
 printf("Enter a number:\n");
 float X;
 if(0 == scanf("%f", &X)) {
